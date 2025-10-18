@@ -53,4 +53,14 @@ describe('SecurityHygiene panel', () => {
     render(<SecurityHygiene data={{ insecureApiCalls: [], missingPolicies: [] }} recommendations={[]} />);
     expect(screen.getByText(/No security hygiene issues detected/i)).toBeInTheDocument();
   });
+
+  it('renders severity badges on issue rows', () => {
+    const data = makeData();
+    render(<SecurityHygiene data={data} recommendations={[]} />);
+    const badges = screen.getAllByTestId('severity-badge');
+    expect(badges.length).toBe(3);
+    expect(badges[0]).toHaveTextContent(/High/i);
+    expect(badges[1]).toHaveTextContent(/Medium/i);
+    expect(badges[2]).toHaveTextContent(/Low/i);
+  });
 });

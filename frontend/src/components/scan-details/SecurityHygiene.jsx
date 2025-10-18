@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { FiShield, FiCheckCircle, FiCopy, FiCode } from 'react-icons/fi';
+import { SeverityBadge } from './VulnerabilityList.jsx';
 
 const severityColor = (sev = 'Low') => {
   switch (sev) {
@@ -88,7 +89,9 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
     try {
       if (storageKey) {
         const v = localStorage.getItem(storageKey);
-        if (v) setAppliedMap(JSON.parse(v) || {});
+        setAppliedMap(v ? (JSON.parse(v) || {}) : {});
+      } else {
+        setAppliedMap({});
       }
     } catch {}
   }, [storageKey]);
@@ -144,7 +147,7 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-1 rounded-full border ${severityColor(i.severity)}`}>{i.severity || 'Low'}</span>
+                      <SeverityBadge severity={i.severity || 'Low'} dataTestId="severity-badge" />
                       <span className="text-white font-semibold">{i.title}</span>
                     </div>
                     <p className="text-sm text-gray-400 mt-1">{i.description}</p>

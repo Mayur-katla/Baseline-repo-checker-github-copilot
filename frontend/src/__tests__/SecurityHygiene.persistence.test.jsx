@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent } from '@testing-library/react';
+// removed: import userEvent from '@testing-library/user-event';
 import SecurityHygiene from '../components/scan-details/SecurityHygiene.jsx';
 
 const sampleData = {
@@ -12,7 +12,7 @@ const sampleData = {
 
 describe('SecurityHygiene applied persistence', () => {
   it('persists Applied? checkbox state per scanId via localStorage', async () => {
-    const user = userEvent.setup();
+    // removed: const user = userEvent.setup();
     const scanIdA = 'scan-123';
     const scanIdB = 'scan-456';
 
@@ -21,7 +21,7 @@ describe('SecurityHygiene applied persistence', () => {
     const appliedToggleA = await screen.findByTestId('applied-toggle-0');
     expect(appliedToggleA).toBeInTheDocument();
 
-    await user.click(appliedToggleA);
+    fireEvent.click(appliedToggleA);
     expect(appliedToggleA).toBeChecked();
 
     // Re-render with same scanId should keep checked state
