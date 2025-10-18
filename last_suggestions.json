@@ -1,0 +1,16 @@
+{
+    "scanId":  "2a1fbfff-0fe5-48b1-8eb6-586d4f4f8856",
+    "status":  "done",
+    "aiSuggestions":  {
+                          "items":  [
+                                        {
+                                            "id":  "s1",
+                                            "file":  "src/index.js",
+                                            "line":  12,
+                                            "description":  "Replace XHR with fetch",
+                                            "patch":  "--- old\n+++ new\n@@ -1,4 +1,4 @@\n-const xhr = new XMLHttpRequest();\n+const r = await fetch(\"/api\")",
+                                            "severity":  "medium"
+                                        }
+                                    ]
+                      }
+}

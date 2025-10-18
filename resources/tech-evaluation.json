@@ -1,0 +1,14 @@
+{
+  "technologies": {
+    "Next.js": { "approved": true, "status": "active", "testing_level": "smoke" },
+    "SvelteKit": { "approved": true, "status": "active", "testing_level": "smoke" },
+    "Nuxt": { "approved": true, "status": "active", "testing_level": "smoke" },
+    "Vue": { "approved": true, "status": "active", "testing_level": "smoke" },
+    "Nx": { "approved": true, "status": "active", "testing_level": "smoke" },
+    "Angular": { "approved": true, "status": "active", "testing_level": "targeted" },
+    "Python": { "approved": true, "status": "active", "testing_level": "targeted" },
+    "Java": { "approved": true, "status": "active", "testing_level": "targeted" },
+    "Go": { "approved": true, "status": "active", "testing_level": "targeted" },
+    "ML": { "approved": true, "status": "active", "testing_level": "thorough" }
+  }
+}

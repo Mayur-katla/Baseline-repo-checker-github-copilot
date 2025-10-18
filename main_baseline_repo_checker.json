@@ -1,0 +1,796 @@
+{
+  "id": "realtime-repo-scanner-v1",
+  "version": "1.0.0",
+  "project": {
+    "name": "Real-time Repo Scanner",
+    "tagline": "AI-assisted repository analysis and modernization toolkit",
+    "short_description": "Scan legacy and modern codebases to report languages, dependencies, features, compatibility, and security issues with actionable upgrade suggestions.",
+    "goal": "Help developers quickly audit and modernize codebases by providing comprehensive reports and suggested improvements for language usage, dependency versions, security vulnerabilities, and browser compatibility, all using open-source tools.",
+    "contact": {
+      "team": "Your Team Name",
+      "email": "you@example.com",
+      "repo_url": "https://github.com/your-org/real-time-repo-scanner"
+    },
+    "notes": "Free-first design: uses open-source code analysis tools and free hosting. Optional integrations (OAuth, external APIs) are optional for demo."
+  },
+  "success_metrics": {
+    "demo_requirements": [
+      "Scan a sample repo (<5k LOC) and display results within 1 minute",
+      "Generate a detailed report with at least 5 actionable suggestions",
+      "Produce a downloadable report or patch ZIP with applied changes"
+    ],
+    "quantitative_goals": {
+      "avg_scan_time_seconds_target": 60,
+      "minimum_suggestions_per_scan": 3,
+      "vulnerabilities_identified_target": 5
+    }
+  },
+  "tech_stack": {
+    "core": {
+      "frontend": "React (Create React App or Vite)",
+      "backend": "Node.js (>=18) + Express",
+      "database": "MongoDB (Atlas Free Tier or Docker)",
+      "language": "JavaScript/TypeScript (ES2020+)"
+    },
+    "frontend_ui_packages": [
+      "tailwindcss",
+      "recharts (charts)",
+      "lucide-react (icons)",
+      "react-query (or swr)",
+      "monaco-editor (diff viewer)",
+      "axios"
+    ],
+    "backend_packages": [
+      "express",
+      "multer (file upload)",
+      "simple-git (git cloning)",
+      "jszip (create ZIP)",
+      "node-fetch (external API calls)",
+      "jsdiff",
+      "dotenv",
+      "winston (logging)",
+      "npm (for programmatic audit)"
+    ],
+    "analysis_tools": [
+      "@babel/parser",
+      "@babel/traverse",
+      "postcss (CSS parsing)",
+      "css-tree",
+      "htmlparser2 or cheerio",
+      "auditjs or npm audit for vulnerabilities",
+      "es-module-lexer (for JS modules)"
+    ]
+  },
+  "data_sources": {
+    "vulnerability": [
+      "NVD/NIST CVE Database",
+      "npm security advisories"
+    ],
+    "compatibility": [
+      "caniuse (via caniuse-lite)",
+      "MDN Web Docs API"
+    ],
+    "docs_references": [
+      "MDN (JavaScript/Browser APIs)",
+      "StackOverflow (community solutions)"
+    ]
+  },
+  "repo_structure": {
+    "root": [
+      "README.md",
+      "package.json",
+      "docker-compose.yml",
+      ".env.example",
+      "LICENSE"
+    ],
+    "frontend": [
+      "src/components",
+      "src/pages",
+      "src/hooks",
+      "src/utils",
+      "public"
+    ],
+    "backend": [
+      "src/controllers",
+      "src/services",
+      "src/jobs",
+      "src/routes",
+      "src/models",
+      "src/utils"
+    ],
+    "database": [
+      "schemas",
+      "seeders"
+    ],
+    "scripts": [
+      "scripts/seed-compatibility-data.js",
+      "scripts/run-scan-fixture.js"
+    ]
+  },
+  "dev_commands": {
+    "install_frontend": "cd frontend && npm install",
+    "install_backend": "cd backend && npm install",
+    "dev": "docker-compose up --build (or run frontend and backend separately)",
+    "lint": "npm run lint (in root or per-package)",
+    "test": "npm test (per-package)"
+  },
+  "environment": {
+    "example_env_vars": {
+      "MONGO_URI": "mongodb://mongo:27017/repo_scanner",
+      "PORT": "4000",
+      "GITHUB_CLIENT_ID": "(if using OAuth)",
+      "GITHUB_CLIENT_SECRET": "(if using OAuth)",
+      "CANIUSE_API_KEY": "(if using any paid API, optional)",
+      "SCAN_TIMEOUT_MS": "600000"
+    }
+  },
+  "frontend_spec": {
+    "purpose": "Interactive dashboard for submitting repositories, viewing analysis charts, reviewing suggestions, and applying fixes.",
+    "design_principles": {
+      "clarity": "Clear layout showing steps: submit repo, processing status, results analysis, actionable items.",
+      "consistency": "Use Tailwind and consistent theming across all components.",
+      "responsiveness": "Fully responsive design; charts and lists adapt to different screen sizes.",
+      "performance": "Code-split heavy components (Monaco, charts); cache results for quick revisit.",
+      "accessibility": "Ensure high contrast, keyboard navigation, ARIA labels for notifications.",
+      "feedback": "Show progress bar and logs during scan; toasts for completion or errors."
+    },
+    "main_pages": [
+      {
+        "path": "/",
+        "component": "Home",
+        "purpose": "Scan submission form and list of recent scans"
+      },
+      {
+        "path": "/scan/:id",
+        "component": "ScanDetail",
+        "purpose": "Display analysis results, charts, and suggestions for a specific scan"
+      },
+      {
+        "path": "/settings",
+        "component": "Settings",
+        "purpose": "Configure scanning options (e.g., include/exclude paths, target environments)"
+      },
+      {
+        "path": "/docs",
+        "component": "Docs",
+        "purpose": "Provide user documentation, how-to guides, and FAQs"
+      }
+    ],
+    "components": [
+      {
+        "name": "Header",
+        "props": [
+          "user",
+          "onLogin",
+          "onLogout",
+          "onHelp"
+        ]
+      },
+      {
+        "name": "RepoInputForm",
+        "props": [
+          "sourceType",
+          "repoUrl",
+          "zipFile",
+          "onSubmit"
+        ]
+      },
+      {
+        "name": "ScanProgressCard",
+        "props": [
+          "status",
+          "progress",
+          "logs"
+        ]
+      },
+      {
+        "name": "LanguagesPieChart",
+        "props": [
+          "languagesData"
+        ]
+      },
+      {
+        "name": "FeatureList",
+        "props": [
+          "features",
+          "onFeatureClick"
+        ]
+      },
+      {
+        "name": "SuggestionList",
+        "props": [
+          "suggestions",
+          "onApply",
+          "onPreview"
+        ]
+      },
+      {
+        "name": "MonacoDiffViewer",
+        "props": [
+          "original",
+          "modified",
+          "language"
+        ]
+      },
+      {
+        "name": "SecuritySummary",
+        "props": [
+          "vulnerabilities",
+          "onFix"
+        ]
+      },
+      {
+        "name": "ImpactSummary",
+        "props": [
+          "metrics"
+        ]
+      },
+      {
+        "name": "ActionBar",
+        "props": [
+          "onDownload",
+          "onCreatePR",
+          "disabled"
+        ]
+      },
+      {
+        "name": "HistoryList",
+        "props": [
+          "history"
+        ]
+      }
+    ],
+    "state_and_fetching": {
+      "approach": "React Query for server state and caching; React Context or useState for UI state (theme, auth).",
+      "reasons": "React Query simplifies retries, caching, and background refresh for scan data, improving user experience."
+    },
+    "data_contracts": {
+      "start_scan": {
+        "method": "POST",
+        "path": "/api/scans",
+        "body": {
+          "sourceType": "github|local",
+          "repoUrl": "string (if github/public URL)",
+          "zipFile": "file (if uploading zip of local repo)",
+          "branch": "string (optional for GitHub)",
+          "entryPoints": [
+            "array of paths (optional)"
+          ],
+          "config": {
+            "targetBrowsers": "string (e.g., 'last 2 Chrome versions, Firefox ESR')",
+            "excludePaths": [
+              "array of patterns to exclude"
+            ]
+          }
+        }
+      },
+      "get_status": {
+        "method": "GET",
+        "path": "/api/scans/:id/status",
+        "response": {
+          "scanId": "string",
+          "status": "queued|processing|done|failed",
+          "progress": 0,
+          "logs": [
+            "string array of log messages"
+          ]
+        }
+      },
+      "get_result": {
+        "method": "GET",
+        "path": "/api/scans/:id/result",
+        "response": {
+          "scanId": "string",
+          "summary": {
+            "languages": [
+              "object array with name and percentage"
+            ],
+            "totalFiles": 0,
+            "totalLines": 0,
+            "totalSizeKB": 0,
+            "dependenciesOutdated": 0,
+            "vulnerabilitiesFound": 0
+          },
+          "dependencies": [
+            {
+              "name": "string",
+              "installedVersion": "string",
+              "latestVersion": "string",
+              "type": "prod|dev"
+            }
+          ],
+          "features": [
+            {
+              "name": "string",
+              "description": "string",
+              "compatibility": {
+                "supportedIn": [
+                  "browser list or 'all'"
+                ],
+                "notes": "string"
+              },
+              "files": [
+                "file paths using this feature"
+              ]
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "dependency": "string",
+              "severity": "low|medium|high",
+              "description": "string",
+              "cvss": "string",
+              "url": "string"
+            }
+          ],
+          "suggestions": [
+            {
+              "id": "s1",
+              "file": "path/to/file",
+              "line": 10,
+              "description": "string",
+              "patch": "unified diff format",
+              "severity": "low|medium|high"
+            }
+          ]
+        }
+      }
+    },
+    "ui_accessibility_checklist": [
+      "All interactive elements accessible via keyboard",
+      "ARIA live regions for status updates",
+      "High contrast mode support",
+      "Meaningful alt text for images/icons"
+    ],
+    "performance_tips": [
+      "Code-split heavy libraries (Monaco, Recharts)",
+      "Use virtualization for long lists (react-window)",
+      "Debounce input for heavy operations",
+      "Cache analysis results with React Query"
+    ]
+  },
+  "backend_spec": {
+    "purpose": "Run scan jobs: clone repo or accept upload, analyze code, query data sources, generate suggestions/patches, and handle results storage and retrieval.",
+    "architecture": {
+      "pattern": "Microservices/Job Queue pattern",
+      "components": [
+        "API Layer (Express controllers)",
+        "Job Queue (in-memory or Redis/Bull)",
+        "Repo Analyzer (clones or unzips code)",
+        "Language/Dependency Analyzer",
+        "Feature/Compatibility Detector",
+        "Security Scanner",
+        "Modernization Engine (suggestion generator)",
+        "PR/Zip Generator",
+        "Database (MongoDB)"
+      ]
+    },
+    "job_queue": {
+      "hackathon_mode": "Simple in-memory FIFO queue with single-threaded processing",
+      "production_recommendation": "Redis + Bull or Queue for parallel processing and retry"
+    },
+    "api_endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/scans",
+        "description": "Start a new scan (GitHub URL or local zip). Returns scanId."
+      },
+      {
+        "method": "GET",
+        "path": "/api/scans/:id/status",
+        "description": "Get current progress and logs for a scan"
+      },
+      {
+        "method": "GET",
+        "path": "/api/scans/:id/result",
+        "description": "Get the final analysis report and suggestions"
+      },
+      {
+        "method": "POST",
+        "path": "/api/scans/:id/apply",
+        "description": "Apply suggested patches: returns a ZIP file or creates a PR",
+        "body": {
+          "action": "download|create_pr",
+          "prTarget": {
+            "owner": "string",
+            "repo": "string",
+            "branch": "string"
+          }
+        }
+      }
+    ],
+    "data_models": {
+      "User": {
+        "fields": {
+          "githubId": "string",
+          "name": "string",
+          "email": "string",
+          "tokenEncrypted": "string"
+        },
+        "indexes": [
+          "githubId",
+          "email"
+        ]
+      },
+      "Scan": {
+        "fields": {
+          "scanId": "string",
+          "source": "object",
+          "status": "string",
+          "logs": [
+            "string"
+          ],
+          "metrics": "object",
+          "createdAt": "date",
+          "completedAt": "date"
+        },
+        "indexes": [
+          "scanId",
+          "status",
+          "createdAt"
+        ]
+      },
+      "Suggestion": {
+        "fields": {
+          "scanId": "string",
+          "file": "string",
+          "line": "number",
+          "description": "string",
+          "patch": "string",
+          "severity": "string"
+        }
+      },
+      "HistoryLog": {
+        "fields": {
+          "scanId": "string",
+          "events": [
+            {
+              "time": "date",
+              "message": "string"
+            }
+          ]
+        }
+      }
+    },
+    "parser_and_detection": {
+      "languages": {
+        "approach": "Determine file types and count lines of code per language; use GitHub Linguist if needed.",
+        "tools": [
+          "linguist or custom file analysis",
+          "cloc"
+        ]
+      },
+      "dependencies": {
+        "approach": "Parse package.json, requirements, etc. Identify outdated versions and security advisories.",
+        "tools": [
+          "npm (semver), yarn APIs",
+          "auditjs"
+        ]
+      },
+      "features": {
+        "approach": "Parse JS/TS ASTs, CSS AST, and HTML. Detect modern language or API usages (e.g., optional chaining, CSS Grid). Map to compatibility data.",
+        "tools": [
+          "@babel/parser",
+          "@babel/traverse",
+          "postcss",
+          "css-tree",
+          "htmlparser2"
+        ]
+      },
+      "compatibility": {
+        "approach": "Use caniuse-lite or MDN data to check browser support of identified features. Allow user to specify target browsers.",
+        "tools": [
+          "caniuse-lite",
+          "browserslist"
+        ]
+      },
+      "security": {
+        "approach": "Run vulnerability scan on dependencies (npm audit or OWASP dependency-check). Report CVEs with severity.",
+        "tools": [
+          "npm audit",
+          "snyk API (optional)"
+        ]
+      }
+    },
+    "modernization_engine": {
+      "strategy": [
+        "Remove unused polyfills or libraries",
+        "Suggest updated dependency versions",
+        "Provide safe code refactor suggestions (with AST transforms)",
+        "Generate unified diff patches using jsdiff",
+        "Add human-readable description and links to relevant docs"
+      ],
+      "safety": "Suggestions are non-destructive by default; user can review before applying."
+    },
+    "pr_generation": {
+      "strategy": "If OAuth provided, fork repo and apply patches, then open PR; otherwise create and return ZIP of modified files.",
+      "note": "Include summary of changes in PR description or zip README."
+    },
+    "patch_format": "Unified diff (git format) for preview and application",
+    "error_handling": {
+      "principles": [
+        "Continue processing other files even if one fails to parse",
+        "Timeouts for large operations",
+        "Log all errors in HistoryLog"
+      ]
+    },
+    "security": {
+      "principles": [
+        "Do not execute any code from the scanned repo",
+        "Run analysis in a sandbox or ephemeral folder",
+        "Sanitize inputs; limit upload size and execution time",
+        "Encrypt sensitive tokens"
+      ]
+    }
+  },
+  "product_todos": [
+    {
+      "id": 1,
+      "task": "Set up project structure (frontend and backend repositories)",
+      "component": "setup",
+      "phase": "Initialization",
+      "priority": 1,
+      "status": "pending"
+    },
+    {
+      "id": 2,
+      "task": "Implement backend Express server and basic API endpoints",
+      "component": "backend",
+      "phase": "API",
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "id": 3,
+      "task": "Design MongoDB schema and connect database",
+      "component": "database",
+      "phase": "Setup",
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "task": "Create frontend with React and Tailwind",
+      "component": "frontend",
+      "phase": "UI",
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "id": 5,
+      "task": "Develop RepoInputForm and scan initiation flow",
+      "component": "frontend",
+      "phase": "UI",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": 6,
+      "task": "Implement cloning or zip extraction of repository",
+      "component": "backend",
+      "phase": "Repo Handling",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": 7,
+      "task": "Parse repository to detect languages and features",
+      "component": "backend",
+      "phase": "Analysis",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": 8,
+      "task": "Integrate dependency analysis and security scanning",
+      "component": "backend",
+      "phase": "Analysis",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": 9,
+      "task": "Build suggestions engine and patch generation",
+      "component": "backend",
+      "phase": "Analysis",
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": 10,
+      "task": "Display analysis results and charts on frontend",
+      "component": "frontend",
+      "phase": "UI",
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": 11,
+      "task": "Integrate Monaco diff for patch preview",
+      "component": "frontend",
+      "phase": "UI",
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": 12,
+      "task": "Implement apply/PR functionality",
+      "component": "backend",
+      "phase": "CI/CD",
+      "priority": 5,
+      "status": "pending"
+    },
+    {
+      "id": 13,
+      "task": "Write unit tests for scanning logic",
+      "component": "backend",
+      "phase": "Testing",
+      "priority": 5,
+      "status": "pending"
+    },
+    {
+      "id": 14,
+      "task": "Write integration tests for API endpoints",
+      "component": "backend",
+      "phase": "Testing",
+      "priority": 5,
+      "status": "pending"
+    },
+    {
+      "id": 15,
+      "task": "Write E2E tests for UI flows (scan -> view results)",
+      "component": "frontend",
+      "phase": "Testing",
+      "priority": 5,
+      "status": "pending"
+    },
+    {
+      "id": 16,
+      "task": "Create project documentation and demo script",
+      "component": "documentation",
+      "phase": "Documentation",
+      "priority": 6,
+      "status": "pending"
+    }
+  ],
+  "roadmap_phases": [
+    {
+      "phase": "Initialization",
+      "description": "Project scaffolding and basic setup",
+      "duration_days_estimate": 1
+    },
+    {
+      "phase": "Repository Handling",
+      "description": "Implement repo cloning and upload handling",
+      "duration_days_estimate": 1
+    },
+    {
+      "phase": "Analysis",
+      "description": "Develop code analysis (languages, dependencies, features, security)",
+      "duration_days_estimate": 2
+    },
+    {
+      "phase": "UI Development",
+      "description": "Build interactive dashboard and display results",
+      "duration_days_estimate": 2
+    },
+    {
+      "phase": "Integration",
+      "description": "Integrate backend and frontend, add diff viewer and apply functionality",
+      "duration_days_estimate": 1
+    },
+    {
+      "phase": "Testing & Polish",
+      "description": "Tests, bug fixes, documentation, demo preparation",
+      "duration_days_estimate": 1
+    }
+  ],
+  "api_contracts_examples": {
+    "start_scan_request_example": {
+      "method": "POST",
+      "path": "/api/scans",
+      "body": {
+        "sourceType": "github",
+        "repoUrl": "https://github.com/org/repo",
+        "branch": "main",
+        "entryPoints": [
+          "src/"
+        ],
+        "config": {
+          "targetBrowsers": "last 2 Chrome versions, Firefox ESR",
+          "excludePaths": [
+            "node_modules",
+            "dist"
+          ]
+        }
+      }
+    },
+    "scan_result_example": {
+      "scanId": "scan_001",
+      "summary": {
+        "languages": [
+          {
+            "name": "JavaScript",
+            "percentage": 70
+          },
+          {
+            "name": "CSS",
+            "percentage": 20
+          },
+          {
+            "name": "HTML",
+            "percentage": 10
+          }
+        ],
+        "totalFiles": 42,
+        "totalLines": 1200,
+        "totalSizeKB": 350,
+        "dependenciesOutdated": 3,
+        "vulnerabilitiesFound": 2
+      },
+      "dependencies": [
+        {
+          "name": "express",
+          "installedVersion": "4.16.0",
+          "latestVersion": "4.18.2",
+          "type": "prod"
+        },
+        {
+          "name": "react",
+          "installedVersion": "16.13.0",
+          "latestVersion": "18.2.0",
+          "type": "peer"
+        }
+      ],
+      "features": [
+        {
+          "name": "Optional Chaining",
+          "description": "Uses optional chaining operator (?.)",
+          "compatibility": {
+            "supportedIn": [
+              "Chrome 80+",
+              "Firefox 74+",
+              "Edge 80+"
+            ],
+            "notes": "Not supported in IE11"
+          },
+          "files": [
+            "src/utils/helpers.js"
+          ]
+        },
+        {
+          "name": "CSS Grid Layout",
+          "description": "Uses CSS Grid for layout",
+          "compatibility": {
+            "supportedIn": [
+              "All modern browsers"
+            ],
+            "notes": ""
+          },
+          "files": [
+            "src/styles/layout.css"
+          ]
+        }
+      ],
+      "vulnerabilities": [
+        {
+          "dependency": "lodash",
+          "severity": "high",
+          "description": "Prototype pollution vulnerability",
+          "cvss": "7.5",
+          "url": "https://npmjs.com/advisories/1523"
+        }
+      ],
+      "suggestions": [
+        {
+          "id": "s1",
+          "file": "package.json",
+          "line": 10,
+          "description": "Update React to latest version to support new features.",
+          "patch": "--- a/package.json\n+++ b/package.json\n@@ -5,6 +5,6 @@\n-  \"react\": \"16.13.0\",\n+  \"react\": \"18.2.0\",\n",
+          "severity": "medium"
+        }
+      ]
+    }
+  }
+}

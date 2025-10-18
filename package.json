@@ -1,0 +1,18 @@
+{
+  "name": "real-time-repo-scanner",
+  "version": "1.0.0",
+  "description": "AI-assisted repository analysis and modernization toolkit.",
+  "main": "index.js",
+  "scripts": {
+    "install:all": "npm install && (cd frontend && npm install) && (cd backend && npm install)",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cypress": "^13.6.3"
+  }
+}

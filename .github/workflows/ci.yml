@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
+      - name: Run backend tests
+        run: npm test -- --ci
+        working-directory: backend
+
+  frontend-build-and-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-build-and-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install all deps
+        run: npm ci
+      - name: Run E2E tests
+        run: |
+          npm run dev &
+          npx wait-on http://localhost:5173
+          npx cypress run
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+      - name: Run frontend tests
+        run: npm test
+        working-directory: frontend

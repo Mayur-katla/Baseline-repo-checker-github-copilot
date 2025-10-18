@@ -1,0 +1,80 @@
+/* Global styles for Baseline Autopilot frontend */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base document styling */
+:root { color-scheme: light; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+    Noto Sans, Ubuntu, Cantarell, "Helvetica Neue", Arial,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  background-color: #f8fafc; /* slate-50 */
+  color: #0f172a; /* slate-900 */
+}
+
+/* Global animation styles */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+/* Hover effects */
+.hover-scale {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Transition effects */
+.transition-all {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Status colors with opacity variants */
+.status-success-bg {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.status-warning-bg {
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+.status-error-bg {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.status-info-bg {
+  background-color: rgba(33, 150, 243, 0.1);
+}

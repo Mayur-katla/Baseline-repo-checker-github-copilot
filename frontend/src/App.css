@@ -1,0 +1,9 @@
+/* Minimal app styles; Tailwind provides most styling. */
+#root {
+  isolation: isolate;
+}
+
+.container {
+  margin: 0 auto;
+  padding: 1rem;
+}

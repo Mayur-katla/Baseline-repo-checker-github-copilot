@@ -1,0 +1,45 @@
+# Environment files
+.env*
+backend/.env
+frontend/.env
+
+# Node dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build outputs
+/dist/
+/build/
+coverage/
+backend/dist/
+frontend/dist/
+
+# Logs and debug
+*.log
+logs/
+backend/logs/
+frontend/logs/
+
+# Cache and temp
+.cache/
+backend/.cache/
+frontend/.cache/
+*.cache
+.tmp/
+
+# Cypress artifacts
+cypress/screenshots/
+cypress/videos/
+
+# Scan outputs
+scan-*.json
+scan-*.pretty.json
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Misc
+*.patch
+*.orig
