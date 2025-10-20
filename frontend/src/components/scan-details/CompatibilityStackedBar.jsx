@@ -1,22 +1,22 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend, Title } from 'chart.js';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend, Title);
 
-export default function CompatibilityStackedBar({ analytics }) {
+function CompatibilityStackedBar({ analytics }) {
   const counts = analytics?.counts || { supported: 0, partial: 0, unsupported: 0 };
 
-  const data = {
+  const data = useMemo(() => ({
     labels: ['Compatibility'],
     datasets: [
       { label: 'Supported', data: [counts.supported], backgroundColor: '#22c55e' },
       { label: 'Partial', data: [counts.partial], backgroundColor: '#f59e0b' },
       { label: 'Unsupported', data: [counts.unsupported], backgroundColor: '#ef4444' },
     ],
-  };
+  }), [counts.supported, counts.partial, counts.unsupported]);
 
-  const options = {
+  const options = useMemo(() => ({
     indexAxis: 'y',
     responsive: true,
     maintainAspectRatio: false,
@@ -58,7 +58,7 @@ export default function CompatibilityStackedBar({ analytics }) {
         } catch (_) {}
       }
     }
-  };
+  }), [data.datasets]);
 
   return (
     <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
@@ -69,3 +69,4 @@ export default function CompatibilityStackedBar({ analytics }) {
     </div>
   );
 }
+export default React.memo(CompatibilityStackedBar);

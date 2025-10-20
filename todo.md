@@ -105,19 +105,31 @@ Based on `scan_details_dashboard_changes.md` (baseline-autopilot-ui-upgrade):
 - ✅ **COMPLETED** - Vulnerability severity badges with CVSS-style emoji indicators.
 - ✅ **COMPLETED** - Summary log timeline visualization with icons and markers.
 - ✅ **COMPLETED** - Expanded export options: CSV and print/save PDF.
-- 🔄 **IN PROGRESS** - Visual polish for chart entry and card hover animations.
-- ⏳ **PENDING** - Repository overview card: size, LOC, language breakdown, GitHub meta.
-- ⏳ **PENDING** - Environment & versioning: Node/npm/Yarn/framework versions with warnings.
-- ⏳ **PENDING** - Feature detection categorization: JS APIs, CSS features, HTML attributes.
-- ⏳ **PENDING** - Architecture visualization: mini file tree view.
-- ⏳ **PENDING** - Categorized suggestion tabs: Security/Modernization/Performance/Maintenance.
-- ⏳ **PENDING** - AI summary card: one-paragraph scan summary.
-- ⏳ **PENDING** - Impact heatmap: per-file modernization impact bars.
-- ⏳ **PENDING** - Badge generator: shields.io ‘Scanned by Baseline Autopilot’. 
-- ⏳ **PENDING** - Backend: compare scans API and impact score per file.
-- ⏳ **PENDING** - Backend: security severity mapping from npm audit JSON.
-- ⏳ **PENDING** - Accessibility: ARIA live regions and keyboard navigation refinements.
-- ⏳ **PENDING** - Performance: list virtualization, chart memoization, lazy-load heavy components.
+- ✅ **COMPLETED** - Visual polish for chart entry and card hover animations.
+- ✅ **COMPLETED** - Repository overview card: size, LOC, language breakdown, GitHub meta.
+- ✅ **COMPLETED** - Environment & versioning: Node/npm/Yarn/framework versions with warnings.
+- ✅ **COMPLETED** - Feature detection categorization: JS APIs, CSS features, HTML attributes.
+- ✅ **COMPLETED** - Architecture visualization: mini file tree view.
+- ✅ **COMPLETED** - Categorized suggestion tabs: Security/Modernization/Performance/Maintenance.
+- ✅ **COMPLETED** - AI summary card: one-paragraph scan summary.
+- ✅ **COMPLETED** - Impact heatmap: per-file modernization impact bars.
+- ✅ **COMPLETED** - Badge generator: shields.io ‘Scanned by Baseline Autopilot’. 
+- ✅ **COMPLETED** - Backend: compare scans API and impact score per file.
+- ✅ **COMPLETED** - Backend: security severity mapping from npm audit JSON.
+- ✅ **COMPLETED** - Accessibility: ARIA live regions and keyboard navigation refinements.
+- ✅ **COMPLETED** - Performance: list virtualization, chart memoization, lazy-load heavy components.
+
+## 8. Start Scan Page Upgrade (v2.2.0)
+Enhancements to the Start Scan experience for interactivity, error resistance, and usability.
+
+- ✅ **COMPLETED** - Dynamic Target Browsers fetched from backend via `GET /api/browsers`.
+- ✅ **COMPLETED** - ZIP upload with drag-and-drop and progress indicator.
+- ✅ **COMPLETED** - GitHub URL pre-check with access validation and status indicator.
+- ✅ **COMPLETED** - Branch autocomplete for GitHub repositories.
+- ✅ **COMPLETED** - Exclude paths chips input with add/remove interactions.
+- ✅ **COMPLETED** - Animated source tab transitions using Framer Motion.
+- ✅ **COMPLETED** - Start Scan button loading/disabled states for safer submissions.
+- ✅ **COMPLETED** - LocalStorage recall of recent scans on `ScanPage`.
 
 ## Status Legend
 - ✅ **COMPLETED** - Task has been fully implemented and verified

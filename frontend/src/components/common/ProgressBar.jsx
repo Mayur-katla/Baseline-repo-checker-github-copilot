@@ -1,19 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export default function ProgressBar({ progress = 0, label = 'Processing…', statusBadge }) {
+function ProgressBar({ progress = 0, label = 'Processing…', statusBadge }) {
   const pct = typeof progress === 'number' ? Math.max(0, Math.min(100, progress)) : 0;
 
   return (
-    <div className="mb-6">
+    <div className="mb-6" role="group" aria-label="Scan progress">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-300 flex items-center gap-3">
+        <span id="scan-progress-label" className="text-sm text-gray-300 flex items-center gap-3">
           <span>{label}</span>
           {statusBadge && (
             <span className={`text-xs px-2 py-1 rounded-full ${statusBadge.cls}`}>{statusBadge.text}</span>
           )}
         </span>
-        <span className="text-sm text-gray-300">{pct}%</span>
+        <span className="text-sm text-gray-300" aria-hidden="true">{pct}%</span>
       </div>
       <div className="w-full h-3 bg-gray-700 rounded overflow-hidden">
         <motion.div
@@ -33,8 +33,14 @@ export default function ProgressBar({ progress = 0, label = 'Processing…', sta
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}
+          aria-valuetext={`${pct}%`}
+          aria-describedby="scan-progress-label"
           role="progressbar"
         />
+      </div>
+      {/* ARIA live region for screen readers */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {label} — {pct}%
       </div>
       <style>
         {`
@@ -47,3 +53,5 @@ export default function ProgressBar({ progress = 0, label = 'Processing…', sta
     </div>
   );
 }
+
+export default React.memo(ProgressBar);

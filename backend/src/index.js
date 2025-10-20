@@ -12,6 +12,7 @@ const uuid = require('uuid');
 const app = express();
 const server = http.createServer(app);
 const scanRoutes = require('./routes/scans');
+const { BROWSERS } = require('./services/baseline');
 
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:5174')
   .split(',')
@@ -37,6 +38,15 @@ app.use(cors({ origin: originCheck, credentials: true }));
 app.use(express.json({ limit: '13mb' }));
 
 app.use('/api/scans', scanRoutes);
+
+// Baseline browsers endpoint
+app.get('/api/browsers', (req, res) => {
+  try {
+    res.json({ browsers: BROWSERS });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to get browsers' });
+  }
+});
 
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);

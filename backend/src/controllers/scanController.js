@@ -101,10 +101,162 @@ const applyScanChanges = async (req, res) => {
   }
 };
 
+// Snapshot helper (DB first, fallback to job cache)
+async function getSnapshot(id) {
+  try {
+    const scan = await Scan.findOne({ id }, { _id: 0 }).lean();
+    if (scan) {
+      const features = scan.features instanceof Map ? Object.fromEntries(scan.features) : (scan.features || {});
+      const baseline = scan.baselineMapping instanceof Map ? Object.fromEntries(scan.baselineMapping) : (scan.baselineMapping || {});
+      return {
+        source: 'db', id,
+        features,
+        baseline,
+        aiSuggestions: scan.aiSuggestions || {},
+        architecture: scan.architecture || {},
+        compatibility: scan.compatibility || {},
+        environment: scan.environment || {},
+        securityAndPerformance: scan.securityAndPerformance || {},
+        projectFeatures: scan.projectFeatures || {}
+      };
+    }
+  } catch (_) {}
+  const job = await queue.getJob(id);
+  if (!job) return null;
+  const res = job.result || {};
+  return {
+    source: 'job', id,
+    features: res.detectedFeatures?.features || {},
+    baseline: res.baseline || {},
+    aiSuggestions: res.aiSuggestions || {},
+    architecture: res.architecture || res.detectedFeatures?.architecture || {},
+    compatibility: res.compatibility || res.detectedFeatures?.compatibility || {},
+    environment: res.environment || res.detectedFeatures?.environment || {},
+    securityAndPerformance: res.securityAndPerformance || res.detectedFeatures?.securityAndPerformance || {},
+    projectFeatures: res.projectFeatures || res.detectedFeatures?.projectFeatures || {}
+  };
+}
+
+async function compareScans(req, res) {
+  const a = String(req.query.a || '').trim();
+  const b = String(req.query.b || '').trim();
+  if (!a || !b) return res.status(400).json({ error: 'Query params a and b are required' });
+  try {
+    const snapA = await getSnapshot(a);
+    const snapB = await getSnapshot(b);
+    if (!snapA || !snapB) return res.status(404).json({ error: 'One or both scans not found' });
+
+    const allFiles = Array.from(new Set([...Object.keys(snapA.features || {}), ...Object.keys(snapB.features || {})]));
+    const featuresDelta = { addedByFile: {}, removedByFile: {}, changedByFile: {} };
+    for (const file of allFiles) {
+      const setA = new Set((snapA.features[file] || []).map(String));
+      const setB = new Set((snapB.features[file] || []).map(String));
+      const added = Array.from([...setB].filter(x => !setA.has(x)));
+      const removed = Array.from([...setA].filter(x => !setB.has(x)));
+      if (added.length) featuresDelta.addedByFile[file] = added;
+      if (removed.length) featuresDelta.removedByFile[file] = removed;
+      const intersection = Array.from([...setA].filter(x => setB.has(x)));
+      const changed = [];
+      for (const feat of intersection) {
+        const baseA = (snapA.baseline[file] || []).find(x => x.feature === feat || x.feature === String(feat));
+        const baseB = (snapB.baseline[file] || []).find(x => x.feature === feat || x.feature === String(feat));
+        const statusA = baseA?.status || 'unknown';
+        const statusB = baseB?.status || 'unknown';
+        if (statusA !== statusB) changed.push({ feature: feat, from: statusA, to: statusB });
+      }
+      if (changed.length) featuresDelta.changedByFile[file] = changed;
+    }
+
+    const itemsA = Array.isArray(snapA.aiSuggestions?.items) ? snapA.aiSuggestions.items : [];
+    const itemsB = Array.isArray(snapB.aiSuggestions?.items) ? snapB.aiSuggestions.items : [];
+    const idsA = new Set(itemsA.map(s => s.id || `${s.file}:${s.title}`));
+    const idsB = new Set(itemsB.map(s => s.id || `${s.file}:${s.title}`));
+    const suggestionsDelta = {
+      added: itemsB.filter(s => !idsA.has(s.id || `${s.file}:${s.title}`)),
+      removed: itemsA.filter(s => !idsB.has(s.id || `${s.file}:${s.title}`)),
+    };
+
+    const diffList = (arrA = [], arrB = []) => {
+      const A = new Set(arrA.map(String));
+      const B = new Set(arrB.map(String));
+      return { added: Array.from([...B].filter(x => !A.has(x))), removed: Array.from([...A].filter(x => !B.has(x))) };
+    };
+
+    const archDelta = {
+      frameworks: diffList(snapA.architecture?.frameworks, snapB.architecture?.frameworks),
+      configFiles: diffList(snapA.architecture?.configFiles, snapB.architecture?.configFiles),
+      buildTools: diffList(snapA.architecture?.buildTools, snapB.architecture?.buildTools),
+    };
+
+    const summarizeBaseline = (baselineObj = {}) => {
+      const counts = { supported: 0, partial: 0, unsupported: 0, unknown: 0 };
+      for (const file of Object.keys(baselineObj)) {
+        for (const entry of baselineObj[file] || []) {
+          const s = String(entry?.status || 'unknown').toLowerCase();
+          if (s === 'supported') counts.supported++; else if (s === 'partial') counts.partial++; else if (s === 'unsupported') counts.unsupported++; else counts.unknown++;
+        }
+      }
+      return counts;
+    };
+    const baseA = summarizeBaseline(snapA.baseline);
+    const baseB = summarizeBaseline(snapB.baseline);
+    const baselineDelta = {
+      supported: baseB.supported - baseA.supported,
+      partial: baseB.partial - baseA.partial,
+      unsupported: baseB.unsupported - baseA.unsupported,
+      unknown: baseB.unknown - baseA.unknown,
+    };
+
+    const summary = {
+      filesChanged: Object.keys(featuresDelta.changedByFile).length,
+      featuresAdded: Object.values(featuresDelta.addedByFile).reduce((acc, v) => acc + v.length, 0),
+      featuresRemoved: Object.values(featuresDelta.removedByFile).reduce((acc, v) => acc + v.length, 0),
+      suggestionsAdded: suggestionsDelta.added.length,
+      suggestionsRemoved: suggestionsDelta.removed.length,
+    };
+
+    return res.json({
+      scans: { a, b, sourceA: snapA.source, sourceB: snapB.source },
+      summary,
+      delta: { features: featuresDelta, baseline: baselineDelta, suggestions: suggestionsDelta, architecture: archDelta },
+    });
+  } catch (err) {
+    console.error('compareScans error', err);
+    res.status(500).json({ error: 'Failed to compare scans' });
+  }
+}
+
+async function getScanImpact(req, res) {
+  const { id } = req.params;
+  try {
+    const snap = await getSnapshot(id);
+    if (!snap) return res.status(404).json({ error: 'Scan not found' });
+
+    const impactByFile = {};
+    const rank = (s) => { const v = String(s || 'unknown').toLowerCase(); return v === 'unsupported' ? 3 : v === 'partial' ? 2 : v === 'supported' ? 1 : 1; };
+    for (const file of Object.keys(snap.baseline || {})) {
+      const entries = snap.baseline[file] || [];
+      const score = entries.reduce((acc, e) => acc + rank(e?.status), 0);
+      const unsupported = entries.filter(e => String(e?.status).toLowerCase() === 'unsupported').length;
+      const partial = entries.filter(e => String(e?.status).toLowerCase() === 'partial').length;
+      impactByFile[file] = { score, unsupported, partial, total: entries.length };
+    }
+
+    const topImpacted = Object.entries(impactByFile).sort((a, b) => b[1].score - a[1].score).slice(0, 15).map(([file, stats]) => ({ file, ...stats }));
+
+    return res.json({ scanId: id, impactByFile, topImpacted });
+  } catch (err) {
+    console.error('getScanImpact error', err);
+    res.status(500).json({ error: 'Failed to compute impact' });
+  }
+}
+
 module.exports = {
   createScan,
   getScanStatus,
   getScanResult,
   getScanSuggestions,
   applyScanChanges,
+  compareScans,
+  getScanImpact,
 };

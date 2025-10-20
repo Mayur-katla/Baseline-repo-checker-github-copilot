@@ -56,6 +56,22 @@ async function buildDetected(root, files, repoUrl) {
   log('Detecting security and performance');
   const secPerf = await parser.detectSecurityAndPerformance(root);
 
+  // Vulnerability severity summary derived from npm audit JSON (environment.securityVulnerabilities)
+  try {
+    const vulns = Array.isArray(env?.securityVulnerabilities) ? env.securityVulnerabilities : [];
+    const severitySummary = { low: 0, moderate: 0, high: 0, critical: 0, unknown: 0 };
+    for (const v of vulns) {
+      const sev = String(v?.severity || v?.severityValue || v?.severity_level || 'unknown').toLowerCase();
+      if (sev === 'low') severitySummary.low++;
+      else if (sev === 'moderate' || sev === 'medium') severitySummary.moderate++;
+      else if (sev === 'high') severitySummary.high++;
+      else if (sev === 'critical') severitySummary.critical++;
+      else severitySummary.unknown++;
+    }
+    secPerf.vulnSeveritySummary = severitySummary;
+  } catch (_) {}
+
+
   // Derive high-level projectFeatures list for frontend aggregators
   const projectFeatures = {
     detectedFeatures: Array.from(
@@ -90,6 +106,63 @@ async function buildDetected(root, files, repoUrl) {
       if (candidateNames.includes(base)) found.add(base);
     }
     architecture.configFiles = Array.from(found).sort();
+
+    // Build compact file tree (top 2 levels, limited nodes)
+    const buildFileTree = (files, maxDepth = 2, maxNodes = 300) => {
+      const sepRegex = /[\\/]+/;
+      const rootNode = { name: '/', type: 'dir', children: [] };
+      let nodeCount = 1;
+
+      const findChildDir = (parent, name) => {
+        const idx = parent.children.findIndex(c => c.type === 'dir' && c.name === name);
+        if (idx >= 0) return parent.children[idx];
+        const newNode = { name, type: 'dir', children: [] };
+        parent.children.push(newNode);
+        nodeCount++;
+        return newNode;
+      };
+
+      for (const rel of files) {
+        if (nodeCount >= maxNodes) break;
+        const parts = String(rel).split(sepRegex).filter(Boolean);
+        if (!parts.length) continue;
+
+        // root-level file
+        if (parts.length === 1) {
+          rootNode.children.push({ name: parts[0], type: 'file' });
+          nodeCount++;
+          continue;
+        }
+
+        // descend directories up to maxDepth
+        let parent = rootNode;
+        const maxDirParts = Math.min(parts.length - 1, maxDepth);
+        for (let i = 0; i < maxDirParts && nodeCount < maxNodes; i++) {
+          const dirName = parts[i];
+          parent = findChildDir(parent, dirName);
+        }
+
+        if (parent && Array.isArray(parent.children) && nodeCount < maxNodes) {
+          parent.children.push({ name: parts[parts.length - 1], type: 'file' });
+          nodeCount++;
+        }
+      }
+
+      // sort children alphabetically, dirs first
+      const sortTree = (node) => {
+        if (!node?.children) return;
+        node.children.sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+          return String(a.name).localeCompare(String(b.name));
+        });
+        node.children.forEach(sortTree);
+      };
+      sortTree(rootNode);
+
+      return rootNode;
+    };
+
+    architecture.fileTree = buildFileTree(allFiles);
   } catch (_) {}
 
   // Derive frameworks from environment and repoDetails

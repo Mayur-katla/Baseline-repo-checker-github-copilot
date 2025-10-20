@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { body, validationResult } = require('express-validator');
+const { body, validationResult, query } = require('express-validator');
 const scanController = require('../controllers/scanController');
 
 // Validation middleware for creating a scan
@@ -55,7 +55,30 @@ const validateCreateScan = [
 router.post('/', validateCreateScan, scanController.createScan);
 router.get('/:id/status', scanController.getScanStatus);
 router.get('/:id/result', scanController.getScanResult);
+// Validation middleware for compare scans
+const validateCompareScans = [
+  query('a')
+    .exists().withMessage('a is required')
+    .isString().withMessage('a must be a string')
+    .trim()
+    .isLength({ min: 1 }).withMessage('a must be non-empty'),
+  query('b')
+    .exists().withMessage('b is required')
+    .isString().withMessage('b must be a string')
+    .trim()
+    .isLength({ min: 1 }).withMessage('b must be non-empty'),
+  (req, res, next) => {
+    const result = validationResult(req);
+    if (!result.isEmpty()) {
+      return res.status(400).json({ errors: result.array().map(e => ({ param: e.param, msg: e.msg })) });
+    }
+    next();
+  }
+];
+
+router.get('/compare', validateCompareScans, scanController.compareScans);
 router.get('/:id', scanController.getScanResult);
+router.get('/:id/impact', scanController.getScanImpact);
 router.get('/:id/suggestions', scanController.getScanSuggestions);
 router.post('/:id/apply', scanController.applyScanChanges);
 

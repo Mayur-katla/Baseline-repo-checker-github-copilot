@@ -1,5 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { FiLink } from 'react-icons/fi'
+
+const AnchorHeading = ({ id, level = 'h2', children }) => {
+  const Tag = level;
+  const size = level === 'h2' ? 'text-2xl' : level === 'h3' ? 'text-xl' : 'text-lg';
+  return (
+    <Tag id={id} className={`${size} font-semibold text-indigo-700 dark:text-indigo-300 mb-4 scroll-mt-24`}>
+      <a href={`#${id}`} className="group inline-flex items-center gap-2">
+        <span>{children}</span>
+        <FiLink className="w-4 h-4 opacity-0 group-hover:opacity-100 text-indigo-500 dark:text-indigo-300" />
+      </a>
+    </Tag>
+  );
+};
+
+const Code = ({ children }) => (
+  <code className="bg-gray-100 text-gray-900 dark:bg-gray-900/60 dark:text-gray-200 px-2 py-1 rounded font-mono text-sm">{children}</code>
+);
 
 const DocsPage = () => {
   return (
@@ -7,140 +25,215 @@ const DocsPage = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="max-w-4xl mx-auto p-4 text-white"
+      className="max-w-4xl mx-auto p-4 text-gray-900 dark:text-white"
     >
-      <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-500 mb-8">Documentation</h1>
+      <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-purple-700 dark:from-indigo-400 dark:to-purple-500 mb-8">Documentation</h1>
       
-      <div className="bg-gray-800/50 backdrop-blur-md p-8 rounded-xl shadow-lg space-y-6 border border-gray-700/50">
+      {/* Quick Overview & Features */}
+      <div className="bg-white dark:bg-gray-800/50 backdrop-blur-md p-8 rounded-xl shadow-lg space-y-6 border border-gray-200 dark:border-gray-700/50">
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Introduction</h2>
-          <p className="text-gray-300">
-            Baseline Autopilot is an AI-powered toolkit designed to help you analyze and modernize codebases. It detects languages, dependencies, features, browser compatibility, and security issues, then surfaces actionable suggestions.
+          <AnchorHeading id="quick-overview">Quick Overview</AnchorHeading>
+          <p className="text-gray-700 dark:text-gray-300">
+            Baseline Repo Checker helps you quickly assess a repository for modern web compatibility and best practices. Use it to understand what works across major browsers, spot risks (like vulnerable dependencies), and get clear guidance on how to modernize.
           </p>
         </section>
 
+        {/* Why Use */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">How It Works</h2>
-          <ol className="list-decimal list-inside space-y-2 text-gray-300">
-            <li><span className="font-semibold text-white">Input Your Repository:</span> Provide a GitHub URL, a local path, a generic Git URL, or upload a ZIP.</li>
-            <li><span className="font-semibold text-white">Select Target Browsers:</span> Choose the browsers to check compatibility against.</li>
-            <li><span className="font-semibold text-white">Analyze and Review:</span> The backend scans, detects features/issues, and generates suggestions.</li>
-            <li><span className="font-semibold text-white">Apply Changes:</span> Review unified diffs and download patches or create a PR.</li>
+          <AnchorHeading id="why-use">Why Use Baseline Repo Checker?</AnchorHeading>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Validate browser compatibility for key features before shipping.</li>
+            <li>Demonstrate modernization readiness for stakeholders.</li>
+            <li>Reduce risk with automated vulnerability checks and summaries.</li>
+            <li>Accelerate planning with actionable suggestions and exportable reports.</li>
+          </ul>
+        </section>
+
+        <section>
+          <AnchorHeading id="feature-highlights">Feature Highlights</AnchorHeading>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Scan sources: <Code>GitHub URL</Code>, <Code>ZIP upload</Code>, <Code>local</Code>, <Code>web URL</Code>.</li>
+            <li>Choose target browsers to focus the analysis (<Code>GET /api/browsers</Code> powered).</li>
+            <li>Real-time progress with clear steps and status messages.</li>
+            <li>Security checks with severity labels and quick wins.</li>
+            <li>Modernization suggestions you can review and export.</li>
+          </ul>
+        </section>
+
+        {/* Quick Start (UI) */}
+        <section>
+          <AnchorHeading id="getting-started">Quick Start</AnchorHeading>
+          <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Open the app and go to <Code>Start Scan</Code>.</li>
+            <li>Select input type: paste a <Code>GitHub URL</Code> or upload a <Code>ZIP</Code>.</li>
+            <li>Pick your target browsers (e.g., <Code>Chrome</Code>, <Code>Safari</Code>, <Code>Firefox</Code>, <Code>Edge</Code>).</li>
+            <li>Optional: choose <Code>branch</Code> and add <Code>exclude paths</Code> like <Code>node_modules</Code>.</li>
+            <li>Start the scan and watch progress. When finished, open the results.</li>
+            <li>Review compatibility insights, vulnerabilities, and suggestions. Export as CSV or PDF.</li>
           </ol>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Tip: Public GitHub repos require no token. Private repos may require access.</p>
         </section>
 
+        {/* Developer API (Optional) */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Getting Started</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li>Node.js 18+ and optional Docker Compose.</li>
-            <li>Local dev: <code className="bg-gray-900/50 px-2 py-0.5 rounded">cd frontend && npm install && npm run dev</code> and <code className="bg-gray-900/50 px-2 py-0.5 rounded">cd backend && npm install && npm run dev</code>.</li>
-            <li>Env vars: <code>VITE_API_URL</code> (frontend), <code>PORT</code>, <code>FRONTEND_URL</code>, <code>MONGODB_URI</code> (backend). See <code>docker-compose.yml</code>.</li>
-            <li>Run both via Docker: <code className="bg-gray-900/50 px-2 py-0.5 rounded">docker-compose up --build</code>.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">API Overview</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li><code>POST /api/scans</code>: start a scan, returns <code>{`{ scanId, status }`}</code>.</li>
-            <li><code>GET /api/scans/:id/status</code>: progress and logs.</li>
-            <li><code>GET /api/scans/:id/result</code>: final report, suggestions.</li>
-            <li><code>POST /api/scans/:id/apply</code>: <code>{`{ action: 'download' | 'create_pr' }`}</code>.</li>
-          </ul>
-          <div className="mt-3 bg-gray-900/40 p-4 rounded border border-gray-700/50">
-            <p className="text-sm text-gray-400 mb-2">Example request</p>
-            <pre className="text-xs whitespace-pre-wrap text-gray-200"><code>{`POST /api/scans
-{
-  "inputType": "github", // github | local | url | zip
-  "repoUrl": "https://github.com/org/repo",
-  "localPath": "",
-  "zipBuffer": "",
-  "targetBrowsers": ["chrome", "firefox", "safari", "edge"],
-  "branch": "develop", // optional
-  "excludePaths": ["node_modules", "dist", "build"] // optional
-}`}</code></pre>
+          <AnchorHeading id="api-overview">Developer API (Optional)</AnchorHeading>
+          <p className="text-gray-700 dark:text-gray-300 mb-4">If you prefer integrating scans into your workflow or CI, you can use these endpoints.</p>
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">POST /api/scans</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl -X POST http://localhost:3001/api/scans \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inputType": "github",
+    "repoUrl": "https://github.com/org/repo",
+    "targetBrowsers": ["chrome","firefox","safari","edge"],
+    "branch": "main",
+    "excludePaths": ["node_modules","dist"]
+  }'`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/scans/:id/status</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl http://localhost:3001/api/scans/SCN123/status`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/scans/:id/result</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl http://localhost:3001/api/scans/SCN123/result`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/scans/:id</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl http://localhost:3001/api/scans/SCN123`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/scans/compare</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl "http://localhost:3001/api/scans/compare?left=SCN123&right=SCN456"`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/scans/:id/impact</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl http://localhost:3001/api/scans/SCN123/impact`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/scans/:id/suggestions</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl http://localhost:3001/api/scans/SCN123/suggestions`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">POST /api/scans/:id/apply</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl -X POST http://localhost:3001/api/scans/SCN123/apply \
+  -H "Content-Type: application/json" \
+  -d '{"action":"download"}'`}</code></pre>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">GET /api/browsers</h3>
+              <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`curl http://localhost:3001/api/browsers`}</code></pre>
+            </div>
           </div>
         </section>
 
+        {/* Input & Validation (anchor-enabled) */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Input & Validation</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li><span className="font-semibold text-white">inputType</span> is required: one of <code>github</code>, <code>local</code>, <code>url</code>, <code>zip</code>.</li>
-            <li><span className="font-semibold text-white">repoUrl</span> must be a valid <code>http(s)</code> URL for <code>github</code>/<code>url</code>.</li>
-            <li><span className="font-semibold text-white">localPath</span> must be absolute for <code>local</code> scans (Windows or POSIX).</li>
-            <li><span className="font-semibold text-white">zipBuffer</span> must be base64 for <code>zip</code> input; frontend enforces a 12MB limit.</li>
-            <li><span className="font-semibold text-white">targetBrowsers</span> must be a non-empty array.</li>
-            <li><span className="font-semibold text-white">branch</span> is optional; alphanumeric plus <code>-</code>, <code>_</code>, <code>.</code>; ≤100 chars.</li>
-            <li><span className="font-semibold text-white">excludePaths</span> is optional; array of non-empty strings ≤150 chars each.</li>
+          <AnchorHeading id="input-validation">Input & Validation</AnchorHeading>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li><span className="font-semibold text-gray-900 dark:text-white">inputType</span> is required: one of <Code>github</Code>, <Code>local</Code>, <Code>url</Code>, <Code>zip</Code>.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">repoUrl</span> must be a valid <Code>http(s)</Code> URL for <Code>github</Code>/<Code>url</Code>.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">localPath</span> must be absolute for <Code>local</Code> scans (Windows or POSIX).</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">zipBuffer</span> must be base64 for <Code>zip</Code> input; frontend enforces a 12MB limit.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">targetBrowsers</span> must be a non-empty array.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">branch</span> is optional; alphanumeric plus <Code>-</Code>, <Code>_</Code>, <Code>.</Code>; ≤100 chars.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">excludePaths</span> is optional; array of non-empty strings ≤150 chars each.</li>
           </ul>
         </section>
 
+        {/* Scan Flow */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Scan Flow</h2>
-          <ol className="list-decimal list-inside space-y-2 text-gray-300">
-            <li>Job queued and <span className="font-semibold text-white">source prepared</span> (clone, local read, or unzip).</li>
-            <li>Language, dependency, and feature detection using ASTs and file heuristics.</li>
-            <li>Compatibility mapping via <code>caniuse-lite</code> and browserslist.</li>
-            <li>Security checks via <code>npm audit</code> and advisories.</li>
-            <li>Suggestions generation, unified diff patches, and report build.</li>
+          <AnchorHeading id="scan-flow">What Happens During a Scan</AnchorHeading>
+          <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Source prepared: clone repo, read local files, or unzip archive.</li>
+            <li>Code examined: languages, dependencies, and features identified.</li>
+            <li>Compatibility mapped against chosen target browsers.</li>
+            <li>Security findings summarized with severity levels.</li>
+            <li>Actionable suggestions listed with context and references.</li>
           </ol>
-          <p className="text-gray-400 text-sm mt-2">Progress step names reflect the actual source operation (e.g., "Cloning repository", "Reading local files", "Unzipping archive").</p>
         </section>
 
+        {/* How It Works (At a Glance) */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Architecture</h2>
-          <p className="text-gray-300">Express API + in-memory FIFO job queue (hackathon mode), with WebSockets for real-time progress. MongoDB suggested for persistence. Analysis uses:</p>
-          <ul className="list-disc list-inside space-y-2 text-gray-300 mt-2">
-            <li><span className="font-semibold text-white">JS/TS:</span> <code>@babel/parser</code>, <code>@babel/traverse</code>, <code>es-module-lexer</code>.</li>
-            <li><span className="font-semibold text-white">CSS/HTML:</span> <code>postcss</code>, <code>css-tree</code>, <code>htmlparser2</code>.</li>
-            <li><span className="font-semibold text-white">Repo ops:</span> <code>simple-git</code>, <code>multer</code>, <code>jszip</code>.</li>
-            <li><span className="font-semibold text-white">Diagnostics:</span> <code>winston</code> logging, <code>dotenv</code> config.</li>
+          <AnchorHeading id="architecture-stack">How It Works (At a Glance)</AnchorHeading>
+          <p className="text-gray-700 dark:text-gray-300">Behind the scenes, the app analyzes your repository using standard parsing libraries and trusted data sources, then presents results in a clean, actionable dashboard.</p>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 mt-2">
+            <li><span className="font-semibold text-gray-900 dark:text-white">Code parsing:</span> ASTs and file heuristics for JS/TS, CSS, and HTML.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">Compatibility data:</span> curated datasets from MDN/caniuse-lite.</li>
+            <li><span className="font-semibold text-gray-900 dark:text-white">Security checks:</span> advisories and dependency health signals.</li>
           </ul>
         </section>
 
+        {/* Scan Lifecycle (Optional Diagram) */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Security & Safety</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li>No code execution from scanned repos; static analysis only.</li>
-            <li>Sandboxed and ephemeral workdirs; sanitized inputs and timeouts.</li>
-            <li>Encrypt sensitive tokens; avoid storing secrets in plain text.</li>
+          <AnchorHeading id="architecture-flow">Scan Lifecycle (Optional Diagram)</AnchorHeading>
+          <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-mermaid">{`flowchart TD
+A[Start Scan Form] --> B[POST /api/scans]
+B --> C{Queue Job}
+C -->|github| D[Clone Repo]
+C -->|local| E[Read Files]
+C -->|zip| F[Unzip Archive]
+D --> G[Analysis]
+E --> G[Analysis]
+F --> G[Analysis]
+G --> H[Compatibility + Security]
+H --> I[Suggestions + Report]
+I --> J[GET /api/scans/:id/result]
+J --> K[UI: Scan Details Dashboard]
+`}</code></pre>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">To render Mermaid, optionally install <Code>mermaid</Code> and hydrate this block. Otherwise, the source code is shown.</p>
+        </section>
+
+        {/* Use Cases */}
+        <section>
+          <AnchorHeading id="use-cases">Use Cases</AnchorHeading>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Pre‑release compatibility check for new features.</li>
+            <li>Initial modernization audit for legacy projects.</li>
+            <li>Monorepo overview: consolidate browser and security findings.</li>
+            <li>Stakeholder reporting with exportable summaries.</li>
           </ul>
         </section>
 
+        {/* Demo */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Accessibility & Performance</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li>High contrast, keyboard navigation, ARIA live regions for status.</li>
-            <li>Code-split heavy components (Monaco, charts); cache results.</li>
-            <li>Virtualize long lists, debounce heavy operations, prefer memoization.</li>
+          <AnchorHeading id="demo">Demo</AnchorHeading>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Start a scan with any public repo (e.g., <Code>https://github.com/twbs/bootstrap</Code>).</li>
+            <li>Pick target browsers, run the scan, and open the results.</li>
+            <li>Export a summary to share with your team.</li>
           </ul>
         </section>
 
+        {/* Self‑Hosting (Optional) */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Roadmap & Metrics</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li>Phases: Initialization → Repo Handling → Analysis → UI → Integration → Testing & Polish.</li>
-            <li>Success: scan in ~60s, ≥3 suggestions, detect ≥5 vulnerabilities.</li>
-            <li>Product todos tracked in <code>main_baseline_repo_checker.json</code>.</li>
-          </ul>
+          <AnchorHeading id="self-hosting">Self‑Hosting (Optional)</AnchorHeading>
+          <p className="text-gray-700 dark:text-gray-300">You can run the app locally if needed. This is optional for most users.</p>
+          <div className="space-y-3 text-gray-700 dark:text-gray-300">
+            <p className="text-sm text-gray-600 dark:text-gray-400">Docker Compose</p>
+            <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`docker-compose up --build`}</code></pre>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Manual</p>
+            <pre className="bg-gray-100 dark:bg-gray-900/40 p-4 rounded border border-gray-200 dark:border-gray-700/50 overflow-x-auto text-sm text-gray-800 dark:text-gray-200"><code className="language-bash">{`# Terminal 1
+cd backend
+npm install
+npm run dev
+
+# Terminal 2
+cd frontend
+npm install
+npm run dev`}</code></pre>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Open <Code>http://localhost:5173/</Code> and start a scan.</p>
         </section>
 
+        {/* Demo */}
         <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Data Sources</h2>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li>Vulnerability: NVD/NIST CVE, npm advisories.</li>
-            <li>Compatibility: caniuse-lite, MDN Web Docs API.</li>
-            <li>Docs references: MDN, StackOverflow.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold text-indigo-400 mb-4">Settings</h2>
-          <p className="text-gray-300">Configure tokens, thresholds, and theme under Settings.</p>
-          <ul className="list-disc list-inside space-y-2 mt-2 text-gray-300">
-            <li><span className="font-semibold text-white">GitHub Token:</span> for PR creation.</li>
-            <li><span className="font-semibold text-white">Baseline Year & Thresholds:</span> control modernization strictness.</li>
-            <li><span className="font-semibold text-white">Theme:</span> light/dark, dual-theme UI.</li>
+          <AnchorHeading id="demo">Demo</AnchorHeading>
+          <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Script: <Code>scripts/run-scan-fixture.js</Code> to generate a sample scan.</li>
+            <li>Walkthrough: open <Code>/scan</Code>, start a GitHub scan, monitor progress, view results.</li>
+            <li>Optional: record a short video showcasing feature highlights and export options.</li>
           </ul>
         </section>
       </div>

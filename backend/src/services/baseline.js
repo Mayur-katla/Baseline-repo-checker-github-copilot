@@ -205,4 +205,4 @@ function lookup(featureKey) {
   return { feature: k, status, support, notes };
 }
 
-module.exports = { lookup };
+module.exports = { lookup, BROWSERS };

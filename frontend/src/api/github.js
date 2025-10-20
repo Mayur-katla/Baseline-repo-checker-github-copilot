@@ -55,6 +55,28 @@ export async function getRepoOverview(repoUrl, { signal } = {}) {
   };
 }
 
+export async function getBranches(repoUrl, { signal } = {}) {
+  const slug = parseRepoSlug(repoUrl);
+  if (!slug) return [];
+  const data = await requestJson(`/repos/${slug.owner}/${slug.repo}/branches?per_page=100`, { signal });
+  return Array.isArray(data) ? data.map(b => b.name).slice(0, 100) : [];
+}
+
+export async function checkRepoAccess(repoUrl, { signal } = {}) {
+  const slug = parseRepoSlug(repoUrl);
+  if (!slug) return { ok: false, exists: false, private: false };
+  try {
+    await requestJson(`/repos/${slug.owner}/${slug.repo}`, { signal });
+    return { ok: true, exists: true, private: false };
+  } catch (e) {
+    const m = String(e?.message || '').match(/GitHub API error \((\d+)\)/);
+    const status = m ? parseInt(m[1], 10) : 0;
+    if (status === 404) return { ok: false, exists: false, private: false };
+    if (status === 403) return { ok: false, exists: true, private: true };
+    return { ok: false, exists: false, private: false };
+  }
+}
+
 export async function getRepoStats(repoUrl, { signal } = {}) {
   const slug = parseRepoSlug(repoUrl);
   if (!slug) return null;

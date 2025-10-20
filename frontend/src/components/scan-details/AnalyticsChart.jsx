@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
@@ -41,14 +41,16 @@ const FeatureList = ({ title, features, color, idSuffix }) => {
       )}
     </div>
   );
-};
+}
+
+export default React.memo(AnalyticsChart);;
 
 
-export default function AnalyticsChart({ analytics }) {
+function AnalyticsChart({ analytics }) {
   const counts = analytics?.counts || { supported: 0, partial: 0, unsupported: 0, suggested: 0 };
   const { supportedFeatures, partialFeatures, unsupportedCode, recommendations } = analytics || {};
 
-  const doughnutData = {
+  const doughnutData = useMemo(() => ({
     labels: ['Supported', 'Partial', 'Unsupported', 'Suggested'],
     datasets: [
       {
@@ -58,9 +60,9 @@ export default function AnalyticsChart({ analytics }) {
         borderWidth: 2,
       },
     ],
-  };
+  }), [counts.supported, counts.partial, counts.unsupported, counts.suggested]);
 
-  const barData = {
+  const barData = useMemo(() => ({
     labels: ['Supported', 'Partial', 'Unsupported', 'Suggested'],
     datasets: [
       {
@@ -69,9 +71,9 @@ export default function AnalyticsChart({ analytics }) {
         backgroundColor: ['#22c55e', '#f59e0b', '#ef4444', '#6366f1'],
       },
     ],
-  };
+  }), [counts.supported, counts.partial, counts.unsupported, counts.suggested]);
 
-  const options = {
+  const options = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 800, easing: 'easeOutQuart' },
@@ -83,7 +85,7 @@ export default function AnalyticsChart({ analytics }) {
       x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
       y: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' }, beginAtZero: true },
     },
-  };
+  }), []);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">

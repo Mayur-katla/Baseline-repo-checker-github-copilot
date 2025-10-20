@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,18 +8,14 @@ import { useSocket } from '../hooks/useSocket.js';
 import ProgressBar from '../components/common/ProgressBar.jsx';
 import SegmentedProgress from '../components/common/SegmentedProgress.jsx';
 import AnalyticsStatistics from '../components/scan-details/AnalyticsStatistics.jsx';
-import AnalyticsChart from '../components/scan-details/AnalyticsChart.jsx';
-import CompatibilityStackedBar from '../components/scan-details/CompatibilityStackedBar.jsx';
 import RepositoryOverview from '../components/scan-details/RepositoryOverview.jsx';
 import EnvironmentAndVersioning from '../components/scan-details/EnvironmentAndVersioning.jsx';
 import FeatureDetection from '../components/scan-details/FeatureDetection.jsx';
 import ArchitectureAnalysis from '../components/scan-details/ArchitectureAnalysis.jsx';
 import CompatibilityReport from '../components/scan-details/CompatibilityReport.jsx';
-import SecurityTabs from '../components/scan-details/SecurityTabs.jsx';
 import HealthAndMaintenance from '../components/scan-details/HealthAndMaintenance.jsx';
 import AiSuggestions from '../components/scan-details/AiSuggestions.jsx';
 import SummaryLog from '../components/scan-details/SummaryLog.jsx';
-import VulnerabilityList from '../components/scan-details/VulnerabilityList.jsx';
 import ExportOptions from '../components/scan-details/ExportOptions.jsx';
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx';
 import { computeCompatibility, computeAnalytics, mergeSection } from '../utils/aggregators.js';
@@ -29,14 +25,25 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import RouterHintsPanel from '../components/router/RouterHintsPanel.jsx'
 import SecurityHygiene from '../components/scan-details/SecurityHygiene.jsx';
+import AiSummary from '../components/scan-details/AiSummary.jsx';
+import ImpactHeatmap from '../components/scan-details/ImpactHeatmap.jsx';
+import BadgeGenerator from '../components/scan-details/BadgeGenerator.jsx';
+import VulnerabilitySummary from '../components/scan-details/VulnerabilitySummary.jsx'
+import ImpactByBaseline from '../components/scan-details/ImpactByBaseline.jsx'
+
+const AnalyticsChart = lazy(() => import('../components/scan-details/AnalyticsChart.jsx'));
+const CompatibilityStackedBar = lazy(() => import('../components/scan-details/CompatibilityStackedBar.jsx'));
+const ArchitectureFileTree = lazy(() => import('../components/scan-details/ArchitectureFileTree.jsx'));
+const SecurityTabs = lazy(() => import('../components/scan-details/SecurityTabs.jsx'));
+const VulnerabilityList = lazy(() => import('../components/scan-details/VulnerabilityList.jsx'));
 
 
 const StatCard = ({ title, value, icon }) => (
-  <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-4 flex items-center border border-gray-700/50">
-    <div className="p-3 rounded-full bg-indigo-500/20 text-indigo-300 mr-4">{icon}</div>
+  <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-4 flex items-center border border-gray-700/50 transition-transform duration-200 hover:scale-[1.02] hover:shadow-lg hover:border-indigo-500/50">
+    <div className="mr-4 text-indigo-400">{icon}</div>
     <div>
-      <p className="text-sm text-gray-400">{title}</p>
-      <p className="text-xl font-bold text-white">{value}</p>
+      <div className="text-sm text-gray-400">{title}</div>
+      <div className="text-xl font-semibold text-white">{value}</div>
     </div>
   </div>
 );
@@ -325,29 +332,48 @@ function ScanDetailPage() {
           <StatCard title="Partial" value={analytics.counts.partial} icon={<FiAlertTriangle />} />
           <StatCard title="Unsupported" value={analytics.counts.unsupported} icon={<FiXCircle />} />
         </div>
+        {/* AI Summary */}
+        {(() => {
+          const ai = mergeSection(displayData, 'aiSuggestions') || {};
+          const sec = mergeSection(displayData, 'securityAndPerformance') || {};
+          return <div className="mb-8"><AiSummary ai={ai} analytics={analytics} securityData={sec} compat={compat} /></div>;
+        })()}
+        {/* Impact Heatmap */}
+        {(() => {
+          const ai = mergeSection(displayData, 'aiSuggestions') || {};
+          return <div className="mb-8"><ImpactHeatmap ai={ai} /></div>;
+        })()}
+        {/* Impact by Baseline */}
+        {(() => {
+          return <ImpactByBaseline scanId={scanId} />;
+        })()}
 
         {/* Charts */}
         <div ref={analyticsSectionRef} className="mb-8">
           <AnalyticsStatistics counts={analytics.counts} />
-          <div className="mt-6"><AnalyticsChart analytics={analytics} /></div>
-          <div className="mt-6"><CompatibilityStackedBar analytics={analytics} /></div>
+          <div className="mt-6">
+            <Suspense fallback={<LoadingSpinner />}>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+                <AnalyticsChart analytics={analytics} />
+              </motion.div>
+            </Suspense>
+          </div>
+          <div className="mt-6">
+            <Suspense fallback={<LoadingSpinner />}>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+                <CompatibilityStackedBar analytics={analytics} />
+              </motion.div>
+            </Suspense>
+          </div>
         </div>
 
         {/* Suggestions + Diff */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 flex flex-col gap-4 h-[70vh] overflow-y-auto pr-2">
-            <AnimatePresence>
-              {(displayData?.suggestions || []).map(s => (
-                <SuggestionItem
-                  key={s.id}
-                  suggestion={s}
-                  onSelect={() => setSelectedSuggestion(s)}
-                  isSelected={selectedSuggestion?.id === s.id}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-
+          <VirtualizedSuggestionList
+            suggestions={(displayData?.suggestions || [])}
+            selectedSuggestion={selectedSuggestion}
+            onSelect={setSelectedSuggestion}
+          />
           <div className="lg:col-span-2">
             <div className="sticky top-8">
               <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700/50 shadow-lg">
@@ -421,7 +447,10 @@ function ScanDetailPage() {
           return hints ? <RouterHintsPanel hints={hints} /> : null;
         })()}
         <FeatureDetection data={mergeSection(displayData, 'projectFeatures')} />
-        <ArchitectureAnalysis data={mergeSection(displayData, 'architecture')} />
+        // Wrap ArchitectureFileTree in Suspense for lazy-load
+        <Suspense fallback={<LoadingSpinner />}>
+          <ArchitectureFileTree data={mergeSection(displayData, 'architecture')} />
+        </Suspense>
         <CompatibilityReport data={{
           ...mergeSection(displayData, 'compatibility'),
           supportedFeatures: compat.supportedFeatures,
@@ -443,14 +472,26 @@ function ScanDetailPage() {
         {(() => {
           const sec = mergeSection(displayData, 'securityAndPerformance') || {};
           const vulns = Array.isArray(sec.securityVulnerabilities) ? sec.securityVulnerabilities : [];
-          return vulns.length > 0 ? <VulnerabilityList data={{ securityAndPerformance: sec }} /> : null;
+          // Wrap VulnerabilityList ternary result in Suspense
+          return (
+            <>
+              <VulnerabilitySummary data={sec} />
+              {vulns.length > 0 ? (
+                <Suspense fallback={<LoadingSpinner />}>
+                  <VulnerabilityList data={{ securityAndPerformance: sec }} />
+                </Suspense>
+              ) : null}
+            </>
+          );
         })()}
         {(() => {
           const sec = mergeSection(displayData, 'securityAndPerformance') || {};
           const recs = compat?.recommendations || [];
           const hasHygiene = (sec.missingPolicies?.length || 0) + (sec.insecureApiCalls?.length || 0) + (recs.length || 0) > 0;
           return hasHygiene ? (
-            <SecurityTabs securityData={sec} recommendations={recs} scanId={scanId} />
+            <Suspense fallback={<LoadingSpinner />}>
+              <SecurityTabs securityData={sec} recommendations={recs} scanId={scanId} />
+            </Suspense>
           ) : null;
         })()}
         {(() => {
@@ -563,9 +604,56 @@ function ScanDetailPage() {
           }}
           isGeneratingPR={isGeneratingPR}
         />
+        {/* Badge generator */}
+        <div className="mt-6">
+          <BadgeGenerator analytics={analytics} displayData={displayData} />
+        </div>
       </div>
     </motion.div>
   );
 }
 
 export default ScanDetailPage;
+
+// Virtualized suggestions list to render only visible items for performance
+function VirtualizedSuggestionList({ suggestions, selectedSuggestion, onSelect }) {
+  const containerRef = useRef(null);
+  const rowHeight = 72; // approx height per suggestion card
+  const buffer = 5; // render extra rows above/below for smoothness
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const total = suggestions.length;
+  const containerHeight = 0; // will be measured via CSS (h-[70vh])
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScroll = () => setScrollTop(el.scrollTop);
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const startIndex = Math.max(Math.floor(scrollTop / rowHeight) - buffer, 0);
+  const endIndex = Math.min(startIndex + Math.ceil((containerRef.current?.clientHeight || 0) / rowHeight) + buffer * 2, total - 1);
+  const items = suggestions.slice(startIndex, endIndex + 1);
+
+  const offsetTop = startIndex * rowHeight;
+
+  return (
+    <div className="lg:col-span-1 flex flex-col gap-4 h-[70vh] overflow-y-auto pr-2 relative" ref={containerRef} role="list" aria-label="AI suggestions list">
+      <div style={{ height: total * rowHeight }}>
+        <div style={{ transform: `translateY(${offsetTop}px)` }}>
+          {items.map(s => (
+            <div key={s.id} role="listitem" className="mb-2">
+              <SuggestionItem
+                suggestion={s}
+                isSelected={selectedSuggestion?.id === s.id}
+                onSelect={() => onSelect(s)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

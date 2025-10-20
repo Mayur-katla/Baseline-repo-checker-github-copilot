@@ -463,6 +463,18 @@ async function detectEnvironmentAndVersioning(repoPath, packageJson) {
       allVulns.push(...Object.values(vulnsObj));
     }
     environment.securityVulnerabilities = allVulns;
+    environment.vulnSeveritySummary = (() => {
+      const summary = { critical: 0, high: 0, moderate: 0, low: 0, unknown: 0 };
+      for (const v of allVulns) {
+        const s = String(v?.severity || '').toLowerCase();
+        if (s === 'critical') summary.critical++;
+        else if (s === 'high') summary.high++;
+        else if (s === 'moderate') summary.moderate++;
+        else if (s === 'low') summary.low++;
+        else summary.unknown++;
+      }
+      return summary;
+    })();
   }
 
   // Detect Python and Java frameworks from common manifest files
@@ -774,6 +786,18 @@ async function detectEnvironmentAndVersioning(repoPath, packageJson) {
       const { stdout } = await execPromise('npm audit --json', { cwd: repoPath });
       const audit = JSON.parse(stdout || '{}');
       securityAndPerformance.securityVulnerabilities = Object.values(audit.vulnerabilities || {});
+      securityAndPerformance.vulnSeveritySummary = (() => {
+        const summary = { critical: 0, high: 0, moderate: 0, low: 0, unknown: 0 };
+        for (const v of (securityAndPerformance.securityVulnerabilities || [])) {
+          const s = String(v?.severity || '').toLowerCase();
+          if (s === 'critical') summary.critical++;
+          else if (s === 'high') summary.high++;
+          else if (s === 'moderate') summary.moderate++;
+          else if (s === 'low') summary.low++;
+          else summary.unknown++;
+        }
+        return summary;
+      })();
     } catch (_) {}
 
     // Detect large files (>100KB)

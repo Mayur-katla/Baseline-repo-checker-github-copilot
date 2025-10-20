@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiBox, FiFileText, FiUser, FiGitMerge, FiCode, FiClock, FiHardDrive } from 'react-icons/fi';
+import { getRepoOverview, getRepoStats } from '../../api/github.js';
 
 const StatItem = ({ icon, label, value }) => (
   <div className="flex items-center text-sm text-gray-300">
@@ -22,6 +23,39 @@ const formatDateSafe = (input) => {
 const RepositoryOverview = ({ data }) => {
   if (!data) return null;
 
+  // Derive a GitHub URL when possible
+  const repoUrl = data.repoUrl || ((data.owner && data.repoName) ? `https://github.com/${data.owner}/${data.repoName}` : null);
+
+  const [ghOverview, setGhOverview] = useState(null);
+  const [ghStats, setGhStats] = useState(null);
+  const [ghError, setGhError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchGitHub() {
+      setGhError(null);
+      try {
+        if (repoUrl && /github\.com/i.test(repoUrl)) {
+          const [ov, st] = await Promise.all([
+            getRepoOverview(repoUrl).catch(() => null),
+            getRepoStats(repoUrl).catch(() => null),
+          ]);
+          if (!cancelled) {
+            setGhOverview(ov);
+            setGhStats(st);
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setGhError(e?.message || 'GitHub fetch failed');
+      }
+    }
+    fetchGitHub();
+    return () => { cancelled = true; };
+  }, [repoUrl]);
+
+  // Merge local scan details with GitHub overview/stats
+  const merged = { ...data, ...(ghOverview || {}), ...(ghStats || {}) };
+
   const {
     repoName = 'N/A',
     description = 'No description available.',
@@ -32,12 +66,26 @@ const RepositoryOverview = ({ data }) => {
     totalLinesOfCode = 0,
     languages = {},
     projectSize = 0,
+    size, // GitHub size string (e.g., "12.3 MB")
     createdDate = 'N/A',
     lastUpdatedDate = 'N/A',
-  } = data;
+    createdAt,
+    lastUpdated,
+    contributors,
+    commitFrequency,
+  } = merged;
 
-  const formattedSize = (Number(projectSize) / (1024 * 1024)).toFixed(2) + ' MB';
-  const languageEntries = Object.entries(languages || {}).sort(([, a], [, b]) => b - a);
+  const formattedSize = size
+    ? size
+    : (projectSize ? (Number(projectSize) / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A');
+
+  // Normalize languages: accept object map or array of { name, percentage }
+  let languageEntries = [];
+  if (Array.isArray(languages)) {
+    languageEntries = languages.map(({ name, percentage }) => [name, `${percentage}%`]);
+  } else {
+    languageEntries = Object.entries(languages || {}).sort(([, a], [, b]) => b - a).map(([lang, count]) => [lang, String(count)]);
+  }
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50">
@@ -56,17 +104,26 @@ const RepositoryOverview = ({ data }) => {
         <StatItem icon={<FiFileText />} label="Total Folders" value={totalFolders} />
         <StatItem icon={<FiCode />} label="Lines of Code" value={Number(totalLinesOfCode || 0).toLocaleString()} />
         <StatItem icon={<FiHardDrive />} label="Project Size" value={formattedSize} />
-        <StatItem icon={<FiClock />} label="Created" value={formatDateSafe(createdDate)} />
-        <StatItem icon={<FiClock />} label="Last Updated" value={formatDateSafe(lastUpdatedDate)} />
+        <StatItem icon={<FiClock />} label="Created" value={formatDateSafe(createdAt || createdDate)} />
+        <StatItem icon={<FiClock />} label="Last Updated" value={formatDateSafe(lastUpdated || lastUpdatedDate)} />
+        {typeof contributors !== 'undefined' && (
+          <StatItem icon={<FiUser />} label="Contributors" value={String(contributors)} />
+        )}
+        {commitFrequency && (
+          <StatItem icon={<FiGitMerge />} label="Commit Frequency" value={commitFrequency} />
+        )}
+        {ghError && (
+          <div className="text-xs text-red-300">{ghError}</div>
+        )}
       </div>
 
       <div className="mt-6">
         <h3 className="font-semibold text-white mb-3">Languages Used</h3>
         <div className="flex flex-wrap gap-2">
           {languageEntries.length > 0 ? (
-            languageEntries.map(([lang, count]) => (
+            languageEntries.map(([lang, val]) => (
               <span key={lang} className="bg-indigo-500/20 text-indigo-300 text-xs font-semibold px-2.5 py-1 rounded-full">
-                {lang} ({count})
+                {lang} ({val})
               </span>
             ))
           ) : (
