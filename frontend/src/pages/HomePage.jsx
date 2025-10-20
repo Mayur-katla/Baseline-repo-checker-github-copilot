@@ -36,7 +36,7 @@ function HomePage() {
     const onConnect = () => console.log('Socket connected');
     const onProgress = (data) => {
       queryClient.setQueryData(['scans'], (oldData) => {
-        if (!oldData) return [];
+        if (!oldData) return oldData; // do not override while loading
         return oldData.map(scan =>
           scan.id === data.id ? { ...scan, progress: data.progress, status: 'processing' } : scan
         );
@@ -44,20 +44,23 @@ function HomePage() {
     };
     const onDone = (data) => {
       queryClient.setQueryData(['scans'], (oldData) => {
-        if (!oldData) return [];
+        if (!oldData) return oldData; // keep undefined until initial fetch resolves
         return oldData.map(scan =>
           scan.id === data.id ? { ...scan, progress: 100, status: 'done' } : scan
         );
       });
+      // Ensure latest state from backend persists
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
       showToast({ message: `Scan ${data.id} completed!`, severity: 'success' });
     };
     const onFailed = (data) => {
       queryClient.setQueryData(['scans'], (oldData) => {
-        if (!oldData) return [];
+        if (!oldData) return oldData; // avoid clearing list prematurely
         return oldData.map(scan =>
           scan.id === data.id ? { ...scan, status: 'failed' } : scan
         );
       });
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
       showToast({ message: `Scan ${data.id} failed.`, severity: 'error' });
     };
 

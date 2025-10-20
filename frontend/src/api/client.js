@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { logError } from '../utils/logger.js';
 
-const baseURL = (import.meta?.env?.VITE_API_URL) || 'http://localhost:3001/api';
+const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+const defaultBaseURL = isBrowser ? '/api' : 'http://localhost:3001/api';
+const baseURL = (import.meta?.env?.VITE_API_URL) || defaultBaseURL;
 
 const client = axios.create({ baseURL, timeout: 15000 });
 

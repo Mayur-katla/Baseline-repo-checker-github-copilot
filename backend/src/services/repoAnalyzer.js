@@ -112,7 +112,12 @@ async function walkFiles(root, options = {}) {
 
 async function cleanup(root) {
   try {
-    await rimraf.rimraf(root);
+    const tmpBase = path.resolve(os.tmpdir());
+    const absRoot = path.resolve(root || '');
+    const isTemp = absRoot.startsWith(tmpBase) && path.basename(absRoot).startsWith('repo-');
+    if (isTemp) {
+      await rimraf.rimraf(root);
+    }
   } catch (err) {
     // ignore
   }

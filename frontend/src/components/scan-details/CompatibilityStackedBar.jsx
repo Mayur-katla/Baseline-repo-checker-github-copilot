@@ -43,6 +43,21 @@ export default function CompatibilityStackedBar({ analytics }) {
       x: { stacked: true, ticks: { color: '#9ca3af' }, grid: { color: '#374151' }, beginAtZero: true },
       y: { stacked: true, ticks: { display: false }, grid: { display: false } },
     },
+    onClick: (evt, elements) => {
+      if (!elements || !elements.length) return;
+      const element = elements[0];
+      const datasetIndex = element.datasetIndex;
+      const label = data.datasets[datasetIndex]?.label;
+      const map = { Supported: '#supported-features', Partial: '#partial-features', Unsupported: '#unsupported-features' };
+      const target = map[label];
+      if (target) {
+        try {
+          window.location.hash = target;
+          const el = document.getElementById(target.substring(1));
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (_) {}
+      }
+    }
   };
 
   return (

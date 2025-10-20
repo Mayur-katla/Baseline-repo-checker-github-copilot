@@ -5,12 +5,21 @@ import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
-const FeatureList = ({ title, features, color }) => {
+const FeatureList = ({ title, features, color, idSuffix }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const id = `feature-list-${idSuffix || title.toLowerCase().replace(/\s+/g, '-')}`;
+
+  React.useEffect(() => {
+    try {
+      if (window.location && window.location.hash === `#${id}`) {
+        setIsOpen(true);
+      }
+    } catch {}
+  }, [id]);
 
   if (!features || features.length === 0) {
     return (
-      <div className="p-3 rounded-lg bg-gray-700/50">
+      <div id={id} className="p-3 rounded-lg bg-gray-700/50">
         <p className="font-semibold text-gray-400">{title} (0)</p>
         <p className="text-sm text-gray-500 italic">No features in this category.</p>
       </div>
@@ -18,7 +27,7 @@ const FeatureList = ({ title, features, color }) => {
   }
 
   return (
-    <div className="p-3 rounded-lg bg-gray-800/70 border border-gray-700/50">
+    <div id={id} className="p-3 rounded-lg bg-gray-800/70 border border-gray-700/50">
       <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center text-left">
         <p className="font-semibold" style={{ color }}>{title} ({features.length})</p>
         {isOpen ? <FiChevronUp /> : <FiChevronDown />}
@@ -91,10 +100,10 @@ export default function AnalyticsChart({ analytics }) {
       <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
         <h3 className="text-white font-semibold mb-4 text-center">Feature Details</h3>
         <div className="space-y-2">
-          <FeatureList title="Supported Features" features={supportedFeatures} color="#22c55e" />
-          <FeatureList title="Partially Supported" features={partialFeatures} color="#f59e0b" />
-          <FeatureList title="Unsupported Code" features={unsupportedCode} color="#ef4444" />
-          <FeatureList title="Recommendations" features={recommendations} color="#6366f1" />
+          <FeatureList title="Supported Features" features={supportedFeatures} color="#22c55e" idSuffix="supported" />
+          <FeatureList title="Partially Supported" features={partialFeatures} color="#f59e0b" idSuffix="partial" />
+          <FeatureList title="Unsupported Code" features={unsupportedCode} color="#ef4444" idSuffix="unsupported" />
+          <FeatureList title="Recommendations" features={recommendations} color="#6366f1" idSuffix="suggested" />
         </div>
       </div>
     </div>

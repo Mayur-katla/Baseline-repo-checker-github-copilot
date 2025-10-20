@@ -6,6 +6,7 @@ import { FiLoader, FiAlertTriangle, FiFile, FiCode, FiCheckCircle, FiXCircle, Fi
 import apiClient, { poll } from '../api/client.js';
 import { useSocket } from '../hooks/useSocket.js';
 import ProgressBar from '../components/common/ProgressBar.jsx';
+import SegmentedProgress from '../components/common/SegmentedProgress.jsx';
 import AnalyticsStatistics from '../components/scan-details/AnalyticsStatistics.jsx';
 import AnalyticsChart from '../components/scan-details/AnalyticsChart.jsx';
 import CompatibilityStackedBar from '../components/scan-details/CompatibilityStackedBar.jsx';
@@ -14,7 +15,7 @@ import EnvironmentAndVersioning from '../components/scan-details/EnvironmentAndV
 import FeatureDetection from '../components/scan-details/FeatureDetection.jsx';
 import ArchitectureAnalysis from '../components/scan-details/ArchitectureAnalysis.jsx';
 import CompatibilityReport from '../components/scan-details/CompatibilityReport.jsx';
-import SecurityAndPerformance from '../components/scan-details/SecurityAndPerformance.jsx';
+import SecurityTabs from '../components/scan-details/SecurityTabs.jsx';
 import HealthAndMaintenance from '../components/scan-details/HealthAndMaintenance.jsx';
 import AiSuggestions from '../components/scan-details/AiSuggestions.jsx';
 import SummaryLog from '../components/scan-details/SummaryLog.jsx';
@@ -22,12 +23,13 @@ import VulnerabilityList from '../components/scan-details/VulnerabilityList.jsx'
 import ExportOptions from '../components/scan-details/ExportOptions.jsx';
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx';
 import { computeCompatibility, computeAnalytics, mergeSection } from '../utils/aggregators.js';
-import { buildUnifiedDiff, downloadBlob } from '../utils/report.js';
+import { buildUnifiedDiff, downloadBlob, buildMarkdownReport } from '../utils/report.js';
 import { getRepoOverview, getRepoStats } from '../api/github.js';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import RouterHintsPanel from '../components/router/RouterHintsPanel.jsx'
 import SecurityHygiene from '../components/scan-details/SecurityHygiene.jsx';
+
 
 const StatCard = ({ title, value, icon }) => (
   <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-4 flex items-center border border-gray-700/50">
@@ -182,6 +184,7 @@ function ScanDetailPage() {
     return { text: 'In Progress', cls: 'bg-indigo-500/20 text-indigo-300' };
   })();
 
+
   // Result fetch (gated on completion)
   const { data: scanData, isLoading: resultLoading, error: resultError } = useQuery({
     queryKey: ['scanResult', scanId],
@@ -223,7 +226,9 @@ function ScanDetailPage() {
 
   // Prefer fetched scanData; otherwise use live socket result (flattened above)
   const displayData = useMemo(() => {
-    if (scanData) return scanData;
+    if (scanData) {
+      return scanData.result ? scanData.result : scanData;
+    }
     if (liveData && liveData.result) return liveData.result;
     return liveData || {};
   }, [scanData, liveData]);
@@ -232,30 +237,13 @@ function ScanDetailPage() {
 
   const hasLiveResults = liveData && liveData.id === scanId && Object.keys(liveData).length > 0;
 
-  // Loading screen
-  if (statusLoading || (resultLoading && !isScanComplete && !hasLiveResults)) {
-    return <LoadingSpinner text={currentStep} />;
-  }
+  // Loading is handled inline via ProgressBar; render header immediately for UX and tests
 
-  // Error screen
-  if (resultError || isScanFailed) {
-    const notFound = (resultError?.status === 404) || (resultError?.response?.status === 404);
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
-        <FiAlertTriangle className="text-4xl text-yellow-400" />
-        <p className="mt-4 text-lg">{notFound ? 'Scan not found' : (isScanFailed ? 'Scan Failed' : 'Error Loading Scan')}</p>
-        <p className="text-sm text-gray-300 text-center max-w-xl">
-          {notFound
-            ? `We couldn’t find a scan with id ${scanId}. It may have expired or never existed.`
-            : (resultError?.message || statusData?.message || 'Unexpected error while loading scan results.')}
-        </p>
-        <div className="mt-4 flex gap-3">
-          <a href="/" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Go to Home</a>
-          <a href="/scan" className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg">Start a New Scan</a>
-        </div>
-      </div>
-    );
-  }
+  // Inline error flag (do not early-return; keep header visible)
+  const showErrorBanner = resultError || isScanFailed;
+  const notFound = (resultError?.status === 404) || (resultError?.response?.status === 404);
+  // Removed early error-screen return; header and inline banner render in main return
+    /* Removed early error-screen return; banner renders inline in main body */
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen w-full px-4 py-8 bg-gray-900 text-white">
@@ -264,7 +252,57 @@ function ScanDetailPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-500">Scan Results</h1>
           <p className="text-gray-400 font-mono">Scan ID: {scanId}</p>
+          {(() => {
+            const repo = displayData?.repoDetails || {};
+            const ownerRepo = [repo.owner, repo.repoName].filter(Boolean).join('/');
+            const branch = scanData?.branch || statusData?.branch || displayData?.branch;
+            const createdAt = statusData?.createdAt || scanData?.createdAt;
+            const completedAt = statusData?.completedAt || scanData?.completedAt || (isScanComplete ? new Date().toISOString() : null);
+            const durationText = createdAt && completedAt ? (() => { const d = (new Date(completedAt) - new Date(createdAt)) / 1000; const mins = Math.floor(d/60); const secs = Math.floor(d%60); return `${mins}m ${secs}s`; })() : null;
+            return (
+              <div className="mt-2 text-xs text-gray-400 flex flex-wrap gap-4">
+                {ownerRepo && <span>Repo: <span className="font-mono text-white/90">{ownerRepo}</span></span>}
+                {branch && <span>Branch: <span className="font-mono text-white/90">{branch}</span></span>}
+                {createdAt && <span>Started: <span className="font-mono">{new Date(createdAt).toLocaleString()}</span></span>}
+                {completedAt && <span>Completed: <span className="font-mono">{new Date(completedAt).toLocaleString()}</span></span>}
+                {durationText && <span>Duration: <span className="font-mono">{durationText}</span></span>}
+              </div>
+            );
+          })()}
         </div>
+
+        {showErrorBanner && (
+          <div className="mb-6 bg-red-500/20 text-red-200 p-4 rounded-lg border border-red-500/50">
+            <p className="font-semibold">{notFound ? 'Scan not found' : (isScanFailed ? 'Scan Failed' : 'Error Loading Scan')}</p>
+            <p className="text-sm text-red-100">
+              {notFound
+                ? `We couldn’t find a scan with id ${scanId}. It may have expired or never existed.`
+                : (resultError?.message || statusData?.message || 'Unexpected error while loading scan results.')}
+            </p>
+          </div>
+        )}
+
+        {isScanComplete && !isScanFailed && (
+          <div className="mb-6 bg-green-500/20 text-green-200 p-4 rounded-lg border border-green-500/50 flex items-center justify-between">
+            <div>
+              <p className="font-semibold">Scan Completed</p>
+              <p className="text-sm">Your baseline analysis finished successfully.</p>
+            </div>
+            <button
+              onClick={() => analyticsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow hover:bg-indigo-700 transition-colors"
+            >
+              View Highlights
+            </button>
+          </div>
+        )}
+
+        {/* Segmented pipeline */}
+        <SegmentedProgress
+          currentStep={currentStep || liveData?.step}
+          progress={typeof (statusData?.progress ?? liveData?.progress) === 'number' ? (statusData?.progress ?? liveData?.progress) : 0}
+          isComplete={isScanComplete && !isScanFailed}
+        />
 
         {/* Live progress bar */}
         <ProgressBar
@@ -400,7 +438,7 @@ function ScanDetailPage() {
             ...(sec.largeAssets || []),
             ...(sec.bottlenecks || []),
           ].length > 0;
-          return hasInsights ? <SecurityAndPerformance data={sec} /> : null;
+          return hasInsights ? null : null;
         })()}
         {(() => {
           const sec = mergeSection(displayData, 'securityAndPerformance') || {};
@@ -408,11 +446,11 @@ function ScanDetailPage() {
           return vulns.length > 0 ? <VulnerabilityList data={{ securityAndPerformance: sec }} /> : null;
         })()}
         {(() => {
-          const sec = securityAndPerformance;
+          const sec = mergeSection(displayData, 'securityAndPerformance') || {};
           const recs = compat?.recommendations || [];
           const hasHygiene = (sec.missingPolicies?.length || 0) + (sec.insecureApiCalls?.length || 0) + (recs.length || 0) > 0;
           return hasHygiene ? (
-            <SecurityHygiene data={sec} recommendations={recs} scanId={scanId} />
+            <SecurityTabs securityData={sec} recommendations={recs} scanId={scanId} />
           ) : null;
         })()}
         {(() => {
@@ -468,6 +506,59 @@ function ScanDetailPage() {
               toast.error(err?.response?.data?.error || err?.message || 'Failed to create PR');
             } finally {
               setIsGeneratingPR(false);
+            }
+          }}
+          onExportCSV={() => {
+            try {
+              const repo = displayData?.repoDetails || {};
+              const ownerRepo = [repo.owner, repo.repoName].filter(Boolean).join('/');
+              const branch = scanData?.branch || statusData?.branch || displayData?.branch || '';
+              const createdAt = statusData?.createdAt || scanData?.createdAt || '';
+              const completedAt = statusData?.completedAt || scanData?.completedAt || '';
+
+              const esc = (v) => {
+                const s = v === null || v === undefined ? '' : String(v);
+                return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+              };
+
+              const lines = [];
+              lines.push(['Meta','Repo', ownerRepo].map(esc).join(','));
+              lines.push(['Meta','Branch', branch].map(esc).join(','));
+              lines.push(['Meta','Started', createdAt].map(esc).join(','));
+              lines.push(['Meta','Completed', completedAt].map(esc).join(','));
+              lines.push(['Analytics','Supported', analytics.counts.supported].map(esc).join(','));
+              lines.push(['Analytics','Partial', analytics.counts.partial].map(esc).join(','));
+              lines.push(['Analytics','Unsupported', analytics.counts.unsupported].map(esc).join(','));
+              lines.push(['Analytics','Suggested', analytics.counts.suggested].map(esc).join(','));
+              (compat.supportedFeatures || []).forEach(f => lines.push(['Supported','Feature', f].map(esc).join(',')));
+              (compat.partialFeatures || []).forEach(f => lines.push(['Partial','Feature', f].map(esc).join(',')));
+              (compat.unsupportedCode || []).forEach(i => lines.push(['Unsupported','Item', i].map(esc).join(',')));
+              (compat.missingConfigs || []).forEach(i => lines.push(['MissingConfig','File', i].map(esc).join(',')));
+              (compat.recommendations || []).forEach(i => lines.push(['Recommendation','Action', i].map(esc).join(',')));
+
+              const csv = lines.join('\n');
+              downloadBlob(`scan-${scanId}-summary.csv`, csv, 'text/csv');
+              toast.success('CSV exported');
+            } catch (e) {
+              toast.error('Failed to export CSV');
+            }
+          }}
+          onExportPDF={() => {
+            try {
+              const md = buildMarkdownReport({ displayData, compat, analytics });
+              const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+              const html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Scan ${scanId} Report</title><style>body{font-family: ui-sans-serif, system-ui, -apple-system; padding:24px; color:#111;} h1{margin-bottom:8px;} pre{white-space: pre-wrap; line-height: 1.5;} @page { margin: 16mm; }</style></head><body><h1>Baseline Scan Report</h1><div><small>Scan ID: ${escHtml(scanId)}</small></div><pre>${escHtml(md)}</pre></body></html>`;
+              const win = window.open('', '_blank');
+              if (!win) {
+                toast.error('Popup blocked: allow popups to generate PDF');
+                return;
+              }
+              win.document.open();
+              win.document.write(html);
+              win.document.close();
+              setTimeout(() => { try { win.focus(); win.print(); } catch (_) {} }, 300);
+            } catch (e) {
+              toast.error('Failed to generate PDF');
             }
           }}
           isGeneratingPR={isGeneratingPR}

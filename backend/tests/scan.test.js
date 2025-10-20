@@ -42,11 +42,11 @@ describe('POST /api/scans', () => {
 
     const response = await request(app)
       .post('/api/scans')
-      .send({ repoUrl })
+      .send({ inputType: 'github', repoUrl })
       .expect(201);
 
     expect(response.body.scanId).toBe(jobId);
-    expect(queue.createJob).toHaveBeenCalledWith({ repoUrl, inputType: undefined, localPath: undefined, targetBrowsers: undefined, zipBuffer: undefined });
+    expect(queue.createJob).toHaveBeenCalledWith({ inputType: 'github', repoUrl, localPath: undefined, targetBrowsers: undefined, zipBuffer: undefined });
   });
 });
 

@@ -16,6 +16,9 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
   const [localPath, setLocalPath] = useState('');
   const [zipBase64, setZipBase64] = useState('');
   const [targetBrowsers, setTargetBrowsers] = useState(['chrome', 'firefox', 'safari', 'edge']);
+  // Advanced options
+  const [branch, setBranch] = useState('');
+  const [excludeText, setExcludeText] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -26,6 +29,16 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
       zipBuffer: inputType === 'zip' ? zipBase64 : '',
       targetBrowsers,
     };
+
+    // Attach advanced options if provided
+    const trimmedBranch = (branch || '').trim();
+    if (trimmedBranch) formData.branch = trimmedBranch;
+    const excludePaths = (excludeText || '')
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (excludePaths.length > 0) formData.excludePaths = excludePaths;
+
     if (inputType === 'local' && !localPath) return;
     if (inputType === 'zip' && !zipBase64) return;
     onSubmit(formData);
@@ -132,8 +145,41 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
           </div>
         </div>
 
+        {/* Advanced Options */}
+        <div className="mb-8">
+          <h3 className="text-sm font-medium text-gray-400 mb-3">Advanced Options (optional)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <label htmlFor="branch" className="sr-only">Branch</label>
+              <input
+                id="branch"
+                type="text"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="Branch (e.g., main, develop)"
+                disabled={loading}
+                className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all"
+              />
+              <p className="text-xs text-gray-500 mt-2">Specify a branch to scan. Leave blank to use default.</p>
+            </div>
+            <div className="relative">
+              <label htmlFor="excludePaths" className="sr-only">Exclude Paths</label>
+              <textarea
+                id="excludePaths"
+                value={excludeText}
+                onChange={(e) => setExcludeText(e.target.value)}
+                placeholder={"Exclude paths (comma or newline separated)\nExamples: node_modules, dist, build"}
+                rows={3}
+                disabled={loading}
+                className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all"
+              />
+              <p className="text-xs text-gray-500 mt-2">We skip these paths during analysis.</p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-4 border-t border-gray-700/50 pt-6">
-          <button type="button" onClick={() => { setRepoUrl(''); setLocalPath(''); setZipBase64(''); }} disabled={loading} className="px-6 py-2 text-sm font-semibold text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors">Reset</button>
+          <button type="button" onClick={() => { setRepoUrl(''); setLocalPath(''); setZipBase64(''); setBranch(''); setExcludeText(''); }} disabled={loading} className="px-6 py-2 text-sm font-semibold text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors">Reset</button>
           <motion.button 
             type="submit" 
             disabled={loading || targetBrowsers.length === 0}

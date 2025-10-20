@@ -9,7 +9,7 @@ const NavLinkItem = ({ to, children, onClick }) => (
     to={to}
     onClick={onClick}
     className={({ isActive }) =>
-      `text-lg font-medium transition-colors duration-300 ${isActive ? 'text-indigo-400' : 'text-gray-300 hover:text-indigo-400'}`
+      `text-lg font-medium transition-colors duration-300 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`
     }
   >
     {children}
@@ -44,14 +44,14 @@ function Header() {
   );
 
   return (
-    <header data-testid="main-header" className="bg-gray-900/80 backdrop-blur-lg sticky top-0 z-50 shadow-lg shadow-indigo-500/10">
+    <header data-testid="main-header" className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg sticky top-0 z-50 shadow-lg shadow-indigo-500/10 border-b border-gray-200 dark:border-gray-800">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <Link to="/" className="flex items-center space-x-3 group">
             <motion.div whileHover={{ rotate: 360, scale: 1.1 }} transition={{ duration: 0.5 }}>
-              <FiCode className="w-8 h-8 text-indigo-500 group-hover:text-indigo-400 transition-colors duration-300" />
+              <FiCode className="w-8 h-8 text-indigo-600 dark:text-indigo-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors duration-300" />
             </motion.div>
-            <h1 className="text-2xl font-bold text-white group-hover:text-indigo-400 transition-colors duration-300">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors duration-300">
               Baseline Autopilot
             </h1>
           </Link>
@@ -66,9 +66,9 @@ function Header() {
               onClick={toggleTheme}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="p-2 rounded-full bg-gray-800/50 hover:bg-indigo-500/20 transition-colors duration-300"
+              className="p-2 rounded-full bg-gray-100 dark:bg-gray-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors duration-300"
             >
-              {theme === 'dark' ? <FiSun className="w-6 h-6 text-yellow-400" /> : <FiMoon className="w-6 h-6 text-indigo-400" />}
+              {theme === 'dark' ? <FiSun className="w-6 h-6 text-yellow-500" /> : <FiMoon className="w-6 h-6 text-indigo-600" />}
             </motion.button>
 
             <div className="md:hidden">
@@ -76,9 +76,9 @@ function Header() {
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                className="p-2 rounded-full bg-gray-800/50 hover:bg-indigo-500/20 transition-colors duration-300"
+                className="p-2 rounded-full bg-gray-100 dark:bg-gray-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors duration-300"
               >
-                {isMenuOpen ? <FiX className="w-6 h-6 text-indigo-400" /> : <FiMenu className="w-6 h-6 text-indigo-400" />}
+                {isMenuOpen ? <FiX className="w-6 h-6 text-indigo-600 dark:text-indigo-400" /> : <FiMenu className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />}
               </motion.button>
             </div>
           </div>
@@ -92,7 +92,7 @@ function Header() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-gray-900/90 backdrop-blur-lg absolute top-20 left-0 right-0 shadow-lg"
+            className="md:hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg absolute top-20 left-0 right-0 shadow-lg"
           >
             <nav className="flex flex-col items-center space-y-6 py-8">
               {navLinks}

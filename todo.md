@@ -93,6 +93,32 @@ This document outlines all required changes, enhancements, and optimizations for
 - ⏳ **PENDING** - Review for hackathon criteria: innovation, usability, technical excellence.
 - ⏳ **PENDING** - Prepare demo script and sample repos showcasing multi-language and monorepo scans.
 
+## 7. Scan Details Dashboard Upgrade (v2.1.0)
+Based on `scan_details_dashboard_changes.md` (baseline-autopilot-ui-upgrade):
+
+- ✅ **COMPLETED** - Enhanced header context under title (repo, branch, timestamps).
+- ✅ **COMPLETED** - Segmented progress pipeline with motion transitions.
+- ✅ **COMPLETED** - Interactive tooltips for analytics metrics.
+- ✅ **COMPLETED** - Dynamic chart bar click filters linking to feature lists.
+- ✅ **COMPLETED** - Feature interactivity across analytics and lists via URL hash.
+- ✅ **COMPLETED** - Collapsible security hygiene groups by file path (accordion).
+- ✅ **COMPLETED** - Vulnerability severity badges with CVSS-style emoji indicators.
+- ✅ **COMPLETED** - Summary log timeline visualization with icons and markers.
+- ✅ **COMPLETED** - Expanded export options: CSV and print/save PDF.
+- 🔄 **IN PROGRESS** - Visual polish for chart entry and card hover animations.
+- ⏳ **PENDING** - Repository overview card: size, LOC, language breakdown, GitHub meta.
+- ⏳ **PENDING** - Environment & versioning: Node/npm/Yarn/framework versions with warnings.
+- ⏳ **PENDING** - Feature detection categorization: JS APIs, CSS features, HTML attributes.
+- ⏳ **PENDING** - Architecture visualization: mini file tree view.
+- ⏳ **PENDING** - Categorized suggestion tabs: Security/Modernization/Performance/Maintenance.
+- ⏳ **PENDING** - AI summary card: one-paragraph scan summary.
+- ⏳ **PENDING** - Impact heatmap: per-file modernization impact bars.
+- ⏳ **PENDING** - Badge generator: shields.io ‘Scanned by Baseline Autopilot’. 
+- ⏳ **PENDING** - Backend: compare scans API and impact score per file.
+- ⏳ **PENDING** - Backend: security severity mapping from npm audit JSON.
+- ⏳ **PENDING** - Accessibility: ARIA live regions and keyboard navigation refinements.
+- ⏳ **PENDING** - Performance: list virtualization, chart memoization, lazy-load heavy components.
+
 ## Status Legend
 - ✅ **COMPLETED** - Task has been fully implemented and verified
 - 🔄 **IN PROGRESS** - Task is currently being worked on or partially completed

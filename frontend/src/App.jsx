@@ -13,7 +13,7 @@ import './App.css';
 const AppContent = () => {
   const location = useLocation();
   return (
-    <div className="bg-gray-900 text-white min-h-screen font-sans">
+    <div className="min-h-screen font-sans bg-white text-gray-900 dark:bg-gray-900 dark:text-white">
       <ToastHost />
       <Header />
       <main className="p-4 sm:p-6 lg:p-8">

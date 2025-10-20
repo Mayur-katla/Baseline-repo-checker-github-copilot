@@ -13,12 +13,19 @@ const app = express();
 const server = http.createServer(app);
 const scanRoutes = require('./routes/scans');
 
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:3000')
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:5174')
   .split(',')
   .map(s => s.trim());
+// Allow undefined origin (non-browser), any explicitly allowed origin, and any localhost port
+const originCheck = (origin, callback) => {
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  if (/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return callback(null, true);
+  return callback(null, false);
+};
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: originCheck,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -26,8 +33,8 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000
 });
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
+app.use(cors({ origin: originCheck, credentials: true }));
+app.use(express.json({ limit: '13mb' }));
 
 app.use('/api/scans', scanRoutes);
 

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FiShield, FiCheckCircle, FiCopy, FiCode } from 'react-icons/fi';
 import { SeverityBadge } from './VulnerabilityList.jsx';
+import { applyScanChanges } from '../../api/scans.js'
 
 const severityColor = (sev = 'Low') => {
   switch (sev) {
@@ -77,11 +78,25 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
   }, [issues]);
 
   const [expandedMap, setExpandedMap] = useState({});
-  const toggleExpanded = (idx) => setExpandedMap(prev => ({ ...prev, [idx]: !prev[idx] }));
+  const toggleExpanded = (key) => setExpandedMap(prev => ({ ...prev, [key]: !prev[key] }));
 
   const [filter, setFilter] = useState({ High: true, Medium: true, Low: true });
   const toggleSeverity = (sev) => setFilter(prev => ({ ...prev, [sev]: !prev[sev] }));
   const filteredIssues = useMemo(() => issues.filter(i => filter[i.severity || 'Low']), [issues, filter]);
+
+  // Group issues by file path for accordion UI
+  const fileKeyFor = (i) => i.file || i.path || i.filePath || (i.location && (i.location.file || i.location.path)) || 'General';
+  const groupedByFile = useMemo(() => {
+    const groups = {};
+    for (const i of filteredIssues) {
+      const key = fileKeyFor(i);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(i);
+    }
+    return groups;
+  }, [filteredIssues]);
+  const [openGroups, setOpenGroups] = useState({});
+  const toggleGroup = (key) => setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
 
   const storageKey = scanId ? `securityHygieneApplied:${scanId}` : null;
   const [appliedMap, setAppliedMap] = useState({});
@@ -102,6 +117,29 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
   }, [appliedMap, storageKey]);
   const toggleApplied = (key) => setAppliedMap(prev => ({ ...prev, [key]: !prev[key] }));
 
+  const [applyStatusMap, setApplyStatusMap] = useState({});
+  const [applyErrorMap, setApplyErrorMap] = useState({});
+  const doApply = async (issueKey, issue, fix) => {
+    if (!scanId) {
+      setApplyErrorMap(prev => ({ ...prev, [issueKey]: 'Missing scanId' }));
+      setApplyStatusMap(prev => ({ ...prev, [issueKey]: 'error' }));
+      return;
+    }
+    setApplyStatusMap(prev => ({ ...prev, [issueKey]: 'loading' }));
+    try {
+      const changes = {
+        type: 'security_hygiene',
+        issue: { title: issue.title, severity: issue.severity, source: issue.source, description: issue.description },
+        snippet: fix ? { label: fix.label, code: fix.code } : null,
+        requestedAt: new Date().toISOString()
+      };
+      await applyScanChanges(scanId, changes);
+      setApplyStatusMap(prev => ({ ...prev, [issueKey]: 'success' }));
+    } catch (err) {
+      setApplyErrorMap(prev => ({ ...prev, [issueKey]: err?.message || 'Apply failed' }));
+      setApplyStatusMap(prev => ({ ...prev, [issueKey]: 'error' }));
+    }
+  };
   const snippetFor = (title = '') => {
     const t = String(title);
     if (t.includes('Rate limiting')) return { label: 'Add express-rate-limit', code: snippets.rateLimit };
@@ -133,43 +171,88 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
         ))}
       </div>
 
-      {filteredIssues.length === 0 && recommendations.length === 0 ? (
+      {Object.keys(groupedByFile).length === 0 && recommendations.length === 0 ? (
         <p className="text-sm text-gray-400">No security hygiene issues detected.</p>
       ) : (
         <div className="space-y-4">
-          {filteredIssues.map((i, idx) => {
-            const fix = snippetFor(i.title);
-            const isExpanded = !!expandedMap[idx];
-            const issueKey = `${i.source || 'unknown'}|${i.title}`;
-            const isApplied = !!appliedMap[issueKey];
+          {Object.entries(groupedByFile).map(([file, items]) => {
+            const count = items.length;
+            const maxSeverity = items.reduce((acc, cur) => (severityWeight(cur.severity) > severityWeight(acc) ? cur.severity : acc), 'Low');
+            const headerColor = severityColor(maxSeverity);
+            const isOpen = !!openGroups[file];
             return (
-              <div key={idx} className={`p-4 rounded-xl border ${severityColor(i.severity)} bg-gray-900/40 ${isApplied ? 'opacity-70' : ''}`}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <SeverityBadge severity={i.severity || 'Low'} dataTestId="severity-badge" />
-                      <span className="text-white font-semibold">{i.title}</span>
-                    </div>
-                    <p className="text-sm text-gray-400 mt-1">{i.description}</p>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          data-testid={`applied-toggle-${idx}`}
-                          checked={isApplied}
-                          onChange={() => toggleApplied(issueKey)}
-                        />
-                        <span className="flex items-center gap-1">Applied?<FiCheckCircle className="text-green-400" /></span>
-                      </label>
-                    </div>
+              <div key={file} className={`rounded-xl border ${headerColor} bg-gray-900/40`}>
+                <button onClick={() => toggleGroup(file)} className="w-full flex items-center justify-between p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-semibold">{file}</span>
                   </div>
-                  {fix ? (
-                    <button onClick={() => toggleExpanded(idx)} className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm">
-                      {isExpanded ? 'Hide Fix Snippet' : 'Show Fix Snippet'}
-                    </button>
-                  ) : null}
-                </div>
-                {fix && isExpanded ? (<SnippetBlock title={fix.label} code={fix.code} />) : null}
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-gray-300">{count} issues</span>
+                    <SeverityBadge severity={maxSeverity} />
+                  </div>
+                </button>
+                {isOpen ? (
+                  <div className="px-3 pb-3 space-y-3">
+                    {items.map((i) => {
+                      const fix = snippetFor(i.title);
+                      const issueKey = `${i.source || 'unknown'}|${i.title}`;
+                      const expandedKey = `${file}|${issueKey}`;
+                      const isExpanded = !!expandedMap[expandedKey];
+                      const isApplied = !!appliedMap[issueKey];
+                      const globalIdx = filteredIssues.indexOf(i);
+                      return (
+                        <div key={expandedKey} className={`p-3 rounded-lg border ${severityColor(i.severity)} bg-gray-900/60 ${isApplied ? 'opacity-70' : ''}`}>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <SeverityBadge severity={i.severity || 'Low'} dataTestId="severity-badge" />
+                                <span className="text-white font-semibold">{i.title}</span>
+                              </div>
+                              <p className="text-sm text-gray-400 mt-1">{i.description}</p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                                <label className="inline-flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    data-testid={`applied-toggle-${globalIdx}`}
+                                    checked={isApplied}
+                                    onChange={() => toggleApplied(issueKey)}
+                                  />
+                                  <span className="flex items-center gap-1">Applied?<FiCheckCircle className="text-green-400" /></span>
+                                </label>
+                              </div>
+                            </div>
+                            {fix ? (
+                              <button onClick={() => toggleExpanded(expandedKey)} className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm">
+                                {isExpanded ? 'Hide Fix Snippet' : 'Show Fix Snippet'}
+                              </button>
+                            ) : null}
+                          </div>
+                          {fix && isExpanded ? (
+                            <>
+                              <SnippetBlock title={fix.label} code={fix.code} />
+                              <div className="mt-3 flex items-center gap-3">
+                                <button
+                                  data-testid={`apply-cta-${globalIdx}`}
+                                  onClick={() => doApply(issueKey, i, fix)}
+                                  className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
+                                  disabled={applyStatusMap[issueKey] === 'loading'}
+                                >
+                                  {applyStatusMap[issueKey] === 'loading' ? 'Applying…' : 'Apply in server'}
+                                </button>
+                                {applyStatusMap[issueKey] === 'success' ? (
+                                  <span className="text-xs text-green-400">Apply job queued</span>
+                                ) : null}
+                                {applyStatusMap[issueKey] === 'error' ? (
+                                  <span className="text-xs text-red-400">{applyErrorMap[issueKey] || 'Apply failed'}</span>
+                                ) : null}
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             );
           })}

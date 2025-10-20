@@ -2,10 +2,9 @@ const queue = require('../jobs/queue');
 const Scan = require('../models/Scan');
 
 const createScan = async (req, res) => {
-  const { inputType, repoUrl, localPath, targetBrowsers, zipBuffer } = req.body;
-
   try {
-    const job = await queue.createJob({ inputType, repoUrl, localPath, targetBrowsers, zipBuffer });
+    const { inputType, repoUrl, localPath, targetBrowsers, zipBuffer, branch, excludePaths } = req.body;
+    const job = await queue.createJob({ inputType, repoUrl, localPath, targetBrowsers, zipBuffer, branch, excludePaths });
     res.status(201).json({ scanId: job.id, status: job.status });
   } catch (error) {
     console.error('Error creating scan:', error);

@@ -9,6 +9,16 @@ const StatItem = ({ icon, label, value }) => (
   </div>
 );
 
+const formatDateSafe = (input) => {
+  if (!input || input === 'N/A') return 'N/A';
+  try {
+    const d = new Date(input);
+    return Number.isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString();
+  } catch {
+    return 'N/A';
+  }
+};
+
 const RepositoryOverview = ({ data }) => {
   if (!data) return null;
 
@@ -26,9 +36,8 @@ const RepositoryOverview = ({ data }) => {
     lastUpdatedDate = 'N/A',
   } = data;
 
-  const formattedSize = (projectSize / (1024 * 1024)).toFixed(2) + ' MB';
-
-  const languageEntries = Object.entries(languages).sort(([, a], [, b]) => b - a);
+  const formattedSize = (Number(projectSize) / (1024 * 1024)).toFixed(2) + ' MB';
+  const languageEntries = Object.entries(languages || {}).sort(([, a], [, b]) => b - a);
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50">
@@ -45,10 +54,10 @@ const RepositoryOverview = ({ data }) => {
         <StatItem icon={<FiGitMerge />} label="License" value={license} />
         <StatItem icon={<FiFileText />} label="Total Files" value={totalFiles} />
         <StatItem icon={<FiFileText />} label="Total Folders" value={totalFolders} />
-        <StatItem icon={<FiCode />} label="Lines of Code" value={totalLinesOfCode.toLocaleString()} />
+        <StatItem icon={<FiCode />} label="Lines of Code" value={Number(totalLinesOfCode || 0).toLocaleString()} />
         <StatItem icon={<FiHardDrive />} label="Project Size" value={formattedSize} />
-        <StatItem icon={<FiClock />} label="Created" value={new Date(createdDate).toLocaleDateString()} />
-        <StatItem icon={<FiClock />} label="Last Updated" value={new Date(lastUpdatedDate).toLocaleDateString()} />
+        <StatItem icon={<FiClock />} label="Created" value={formatDateSafe(createdDate)} />
+        <StatItem icon={<FiClock />} label="Last Updated" value={formatDateSafe(lastUpdatedDate)} />
       </div>
 
       <div className="mt-6">

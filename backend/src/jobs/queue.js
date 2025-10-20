@@ -320,9 +320,13 @@ class JobQueue extends EventEmitter {
       })();
     } else {
       // This is a scan job
+      const payload = job.payload || {};
+      const sourceStep = payload.localPath
+        ? 'Preparing local workspace'
+        : (payload.zipBuffer ? 'Unpacking archive' : 'Cloning repository');
       const steps = [
         { name: 'Queued', progress: 0 },
-        { name: 'Cloning repository', progress: 20 },
+        { name: sourceStep, progress: 20 },
         { name: 'Analyzing files', progress: 50 },
         { name: 'Generating suggestions', progress: 80 },
         { name: 'Done', progress: 100 }
@@ -349,7 +353,7 @@ class JobQueue extends EventEmitter {
           if (this.useDatabase) {
             scan = new ScanModel({
               id: job.id,
-              repoUrl: job.payload?.repoUrl || 'unknown',
+              repoUrl: job.payload?.repoUrl || job.payload?.localPath || 'unknown',
               status: 'processing',
               progress: job.progress
             });
@@ -407,6 +411,45 @@ class JobQueue extends EventEmitter {
               scan.baselineMapping = new Map(Object.entries(baselineMapping));
               scan.modernizationSuggestions = [];
               // Persist AI suggestions to Scan document
+              scan.aiSuggestions = job.result?.aiSuggestions || {};
+              scan.repoDetails = detected.repoDetails;
+              scan.environment = detected.environment;
+              scan.projectFeatures = detected.projectFeatures;
+              scan.architecture = detected.architecture;
+              scan.compatibility = detected.compatibility;
+              scan.versionControl = detected.versionControl;
+              scan.securityAndPerformance = detected.securityAndPerformance;
+              scan.healthAndMaintenance = detected.healthAndMaintenance;
+              scan.summaryLog = detected.summaryLog;
+              scan.exportOptions = detected.exportOptions;
+            }
+          } else if (job.payload && job.payload.localPath) {
+            console.log(`Processing job ${job.id} with local path: ${job.payload.localPath}`);
+            workspaceRoot = String(job.payload.localPath).trim();
+            updateProgress(2);
+            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions: ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html'] });
+            console.log(`Found ${files.length} files to analyze from local path`);
+            let filesAnalyzed = 0;
+            const totalFiles = files.length;
+            for (const file of files) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+              filesAnalyzed++;
+              const analysisProgress = 50 + Math.round((filesAnalyzed / totalFiles) * 30);
+              job.progress = analysisProgress;
+              this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
+            }
+            const detected = await buildDetected(workspaceRoot, files, job.payload.localPath || '');
+            const baselineMapping = {};
+            for (const f of Object.keys(detected.features)) {
+              baselineMapping[f] = detected.features[f].map(k => baseline.lookup(k));
+            }
+            job.result = this._buildFixtureResult(job, files, detected);
+            job.result.baseline = baselineMapping;
+  
+            if (this.useDatabase && scan) {
+              scan.features = new Map(Object.entries(detected.features));
+              scan.baselineMapping = new Map(Object.entries(baselineMapping));
+              scan.modernizationSuggestions = [];
               scan.aiSuggestions = job.result?.aiSuggestions || {};
               scan.repoDetails = detected.repoDetails;
               scan.environment = detected.environment;
