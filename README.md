@@ -62,6 +62,20 @@ Example request:
 - Backend: `PORT`, `FRONTEND_URL`, `MONGODB_URI`, `CACHE_MAX_MB`, `CACHE_TTL_DAYS`
 - See `docker-compose.yml` for defaults
 
+## Pull Requests & GitHub Token
+
+Create a PR directly from the Scan Detail page. The system needs a GitHub token to authenticate against the repository:
+
+- Frontend (recommended): Open `Settings` and paste a Personal Access Token (PAT) into `GitHub Token`. This token is stored in your browser (`localStorage`) and automatically sent as a `Bearer` token on PR creation.
+  - Classic PAT: grant `repo` scope.
+  - Fine‑grained PAT: grant `Contents: Read & Write` and `Pull requests: Read & Write` on the target repo.
+- Frontend (optional): Set `VITE_GITHUB_TOKEN` to enable GitHub API calls used for repo overview checks.
+- Backend: Accepts tokens via `Authorization: Bearer <token>` header, or `token` in the request body. If neither is provided, it falls back to `process.env.GITHUB_TOKEN`.
+
+Notes:
+- A new branch named `baseline-modernization-<scanId>` is created off the default branch. The generated unified diff is committed as `patches/<scanId>.diff`, and a Pull Request is opened.
+- Ensure the token has write permissions on the target repository (org/private repos may require elevated access).
+
 ## Documentation & Roadmap
 
 - In-app docs: navigate to `/docs` for Getting Started, API, validation, architecture, security, accessibility, performance, and roadmap.

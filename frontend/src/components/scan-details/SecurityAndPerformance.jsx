@@ -1,5 +1,5 @@
-import React from 'react';
-import { FiShield, FiZap, FiAlertOctagon, FiPackage, FiFastForward } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { FiShield, FiZap, FiAlertOctagon, FiPackage, FiFastForward, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 const InsightItem = ({ icon, title, description, severity }) => {
   const severityClasses = {
@@ -38,6 +38,11 @@ const SecurityAndPerformance = ({ data }) => {
     ...bottlenecks.map(i => ({ ...i, icon: <FiFastForward />, type: 'Performance' })),
   ];
 
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    setIndex((i) => (insights.length ? Math.min(i, insights.length - 1) : 0));
+  }, [insights.length]);
+
   return (
     <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
@@ -47,15 +52,36 @@ const SecurityAndPerformance = ({ data }) => {
 
       <div className="space-y-4">
         {insights.length > 0 ? (
-          insights.map((item, index) => (
-            <InsightItem
-              key={index}
-              icon={item.icon}
-              title={item.title}
-              description={item.description}
-              severity={item.severity}
-            />
-          ))
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setIndex((index - 1 + insights.length) % insights.length)}
+                className="p-2 rounded-lg bg-gray-700/40 hover:bg-gray-700/60 text-gray-200"
+                aria-label="Previous insight"
+              >
+                <FiChevronLeft />
+              </button>
+              <span className="text-sm text-gray-400">{index + 1} / {insights.length}</span>
+              <button
+                onClick={() => setIndex((index + 1) % insights.length)}
+                className="p-2 rounded-lg bg-gray-700/40 hover:bg-gray-700/60 text-gray-200"
+                aria-label="Next insight"
+              >
+                <FiChevronRight />
+              </button>
+            </div>
+            {(() => {
+              const item = insights[index];
+              return (
+                <InsightItem
+                  icon={item.icon}
+                  title={item.title}
+                  description={item.description}
+                  severity={item.severity}
+                />
+              );
+            })()}
+          </>
         ) : (
           <p className="text-sm text-gray-400 text-center py-4">No specific security or performance insights found.</p>
         )}

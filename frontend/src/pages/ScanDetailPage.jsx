@@ -410,7 +410,24 @@ function ScanDetailPage() {
                       try {
                         setIsGeneratingPR(true);
                         const diffs = selectedSuggestion ? [selectedSuggestion] : (displayData?.suggestions || []);
+                        if (!Array.isArray(diffs) || diffs.length === 0) {
+                          toast.error('No suggestions available to create a PR');
+                          setIsGeneratingPR(false);
+                          return;
+                        }
                         const patch = buildUnifiedDiff(diffs);
+                        if (!patch || patch.trim().length < 40) {
+                          toast.error('Patch is empty; nothing to commit');
+                          setIsGeneratingPR(false);
+                          return;
+                        }
+                        const settingsRaw = typeof window !== 'undefined' ? localStorage.getItem('baseline-settings') : null;
+                        const token = settingsRaw ? (() => { try { return JSON.parse(settingsRaw)?.githubToken; } catch { return null; } })() : null;
+                        if (!token && !(import.meta?.env?.VITE_GITHUB_TOKEN)) {
+                          toast.error('Add a GitHub token in Settings to create a PR');
+                          setIsGeneratingPR(false);
+                          return;
+                        }
                         const title = `Baseline Modernization - Scan ${scanId}`;
                         const description = `Automated PR generated from baseline scan.\n\nCounts: supported=${analytics.counts.supported}, partial=${analytics.counts.partial}, unsupported=${analytics.counts.unsupported}.`;
                         const res = await apiClient.post(`/github/pr`, { scanId, title, description, patch });
@@ -422,7 +439,12 @@ function ScanDetailPage() {
                           toast.info(res.data?.message || 'PR created (stub)');
                         }
                       } catch (err) {
-                        toast.error(err?.response?.data?.error || err?.message || 'Failed to create PR');
+                        const status = err?.status || err?.response?.status;
+                        let message = err?.response?.data?.error || err?.message || 'Failed to create PR';
+                        if (status === 401) message = 'GitHub authentication failed: check token in Settings.';
+                        else if (status === 403) message = 'Permission denied: token lacks repo write access.';
+                        else if (status === 404) message = 'Repository or branch not found; verify scan repo URL.';
+                        toast.error(message);
                       } finally {
                         setIsGeneratingPR(false);
                       }
@@ -532,7 +554,24 @@ function ScanDetailPage() {
             try {
               setIsGeneratingPR(true);
               const diffs = selectedSuggestion ? [selectedSuggestion] : (displayData?.suggestions || []);
+              if (!Array.isArray(diffs) || diffs.length === 0) {
+                toast.error('No suggestions available to create a PR');
+                setIsGeneratingPR(false);
+                return;
+              }
               const patch = buildUnifiedDiff(diffs);
+              if (!patch || patch.trim().length < 40) {
+                toast.error('Patch is empty; nothing to commit');
+                setIsGeneratingPR(false);
+                return;
+              }
+              const settingsRaw = typeof window !== 'undefined' ? localStorage.getItem('baseline-settings') : null;
+              const token = settingsRaw ? (() => { try { return JSON.parse(settingsRaw)?.githubToken; } catch { return null; } })() : null;
+              if (!token && !(import.meta?.env?.VITE_GITHUB_TOKEN)) {
+                toast.error('Add a GitHub token in Settings to create a PR');
+                setIsGeneratingPR(false);
+                return;
+              }
               const title = `Baseline Modernization - Scan ${scanId}`;
               const description = `Automated PR generated from baseline scan.\n\nCounts: supported=${analytics.counts.supported}, partial=${analytics.counts.partial}, unsupported=${analytics.counts.unsupported}.`;
               const res = await apiClient.post(`/github/pr`, { scanId, title, description, patch });
@@ -544,7 +583,12 @@ function ScanDetailPage() {
                 toast.info(res.data?.message || 'PR created (stub)');
               }
             } catch (err) {
-              toast.error(err?.response?.data?.error || err?.message || 'Failed to create PR');
+              const status = err?.status || err?.response?.status;
+              let message = err?.response?.data?.error || err?.message || 'Failed to create PR';
+              if (status === 401) message = 'GitHub authentication failed: check token in Settings.';
+              else if (status === 403) message = 'Permission denied: token lacks repo write access.';
+              else if (status === 404) message = 'Repository or branch not found; verify scan repo URL.';
+              toast.error(message);
             } finally {
               setIsGeneratingPR(false);
             }

@@ -293,6 +293,14 @@ class JobQueue extends EventEmitter {
           this.jobs.set(job.id, this._convertFromDbModel(job));
         });
         console.log(`Loaded ${jobs.length} jobs from database`);
+        // Re-enqueue any incomplete jobs to resume processing
+        for (const j of this.jobs.values()) {
+          if (j.status === 'queued' || j.status === 'processing') {
+            j.status = 'queued';
+            this.pending.push(j);
+          }
+        }
+        this._scheduleNext();
       } catch (err) {
         console.error('Error loading jobs from database:', err);
       }
@@ -377,24 +385,44 @@ class JobQueue extends EventEmitter {
     this.activeJobs.add(job.id);
     job.status = 'processing';
 
+    const timeoutMs = Number.parseInt(process.env.SCAN_TIMEOUT_MS || '0', 10);
+    let timeoutHandle = null;
+    if (timeoutMs > 0) {
+      timeoutHandle = setTimeout(() => {
+        job.cancelRequested = true;
+        job.cancelReason = 'timeout';
+      }, timeoutMs);
+    }
+    class CancellationError extends Error {}
+    const ensureNotCancelled = () => {
+      if (job.cancelRequested) throw new CancellationError(job.cancelReason || 'cancelled');
+    };
+
     if (job.type === 'apply') {
       // Logic for applying changes
       (async () => {
         try {
+          ensureNotCancelled();
           console.log(`Applying changes for scan ${job.scanId}`);
           // Implement the logic to apply changes here
           // For example, using git apply or other tools
 
-          job.status = 'completed';
+          job.status = 'done';
           this.emit('done', { id: job.id, result: { message: 'Changes applied successfully' } });
         } catch (error) {
-          job.status = 'failed';
-          job.result = { error: String(error) };
-          this.emit('done', { id: job.id, result: job.result });
+          if (error instanceof CancellationError) {
+            job.status = 'cancelled';
+            job.result = { cancelled: true, reason: job.cancelReason || 'user' };
+            this.emit('done', { id: job.id, result: job.result });
+          } else {
+            job.status = 'failed';
+            job.result = { error: String(error) };
+            this.emit('done', { id: job.id, result: job.result });
+          }
         } finally {
-            if (workspaceRoot) await repoAnalyzer.cleanup(workspaceRoot);
+            if (timeoutHandle) clearTimeout(timeoutHandle);
             this.activeJobs.delete(job.id);
-+           this._scheduleNext();
+            this._scheduleNext();
         }
       })();
     } else {
@@ -410,9 +438,7 @@ class JobQueue extends EventEmitter {
         { name: 'Generating suggestions', progress: 80 },
         { name: 'Done', progress: 100 }
       ];
-      
       let currentStep = 0;
-  
       const updateProgress = (stepIndex, status) => {
         currentStep = stepIndex;
         job.progress = steps[stepIndex].progress;
@@ -420,13 +446,13 @@ class JobQueue extends EventEmitter {
         this._updateJobInDb(job);
         this.emit('progress', { id: job.id, progress: job.progress, step: steps[currentStep].name });
       };
-  
       updateProgress(0);
   
       (async () => {
         let workspaceRoot = null;
         try {
           updateProgress(1);
+          ensureNotCancelled();
           let scan = null;
   
           if (this.useDatabase) {
@@ -440,76 +466,38 @@ class JobQueue extends EventEmitter {
           }
   
           if (job.payload && job.payload.repoUrl) {
+            ensureNotCancelled();
             console.log(`Processing job ${job.id} with repository URL: ${job.payload.repoUrl}`);
             const cloneStart = Date.now();
             workspaceRoot = await repoAnalyzer.cloneRepo(job.payload.repoUrl, { branch: job.payload.branch, ref: job.payload.ref, sparsePaths: Array.isArray(job.payload?.sparsePaths) ? job.payload.sparsePaths : [] });
             const cloneMs = Date.now() - cloneStart;
             console.log(`Repository cloned successfully to ${workspaceRoot}`);
-            
+            ensureNotCancelled();
             updateProgress(2);
             const walkStart = Date.now();
             const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
--            const excludePaths = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
-+            const excludePaths = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
-+            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
-+            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
-+            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
-+            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
-+            const mergedExcludes = Array.from(new Set([...(excludePaths || []), ...userExclEnv]));
-
-             // Incremental diff: restrict to changed files when baseRef provided
-             const baseRef = typeof job.payload?.baseRef === 'string' ? job.payload.baseRef : undefined;
-             const compareRef = typeof job.payload?.compareRef === 'string' ? job.payload.compareRef : undefined;
-             let changedPaths = [];
-             try {
-               if (baseRef) {
-                 changedPaths = await repoAnalyzer.getChangedPaths(workspaceRoot, baseRef, compareRef);
-               }
-             } catch (_) {}
-
-             let files = [];
-             if (Array.isArray(changedPaths) && changedPaths.length > 0) {
--              const extSet = new Set(extensions);
--              const isExcluded = (relPath) => {
--                const norm = String(relPath).replace(/\\/g, '/');
--                return excludePaths.some(p => norm.includes(String(p)));
--              };
--              files = changedPaths
--                .filter(p => extSet.has(path.extname(p)))
--                .filter(p => !isExcluded(p));
--              console.log(`Incremental scan enabled: ${files.length} changed files`);
-+              // Filter changed paths using the same policies as full scan
-+              const eligible = await repoAnalyzer.walkFiles(workspaceRoot, {
-+                extensions,
-+                excludePaths: mergedExcludes,
-+                maxFileBytes,
-+                skipLfsFiles: skipLfsEnv,
-+              });
-+              const eligibleSet = new Set(eligible.map((p) => String(p).replace(/\\/g, '/')));
-+              files = changedPaths
-+                .map(p => String(p).replace(/\\/g, '/'))
-+                .filter(p => eligibleSet.has(p));
-+              console.log(`Incremental scan enabled: ${files.length} changed files (from ${changedPaths.length} diff entries)`);
-             } else {
--              files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths });
-+              files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
-               console.log(`Found ${files.length} files to analyze`);
-             }
-            const walkMs = Date.now() - walkStart;
-
+            const excludePaths = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
+            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
+            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
+            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
+            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
+            const mergedExcludes = Array.from(new Set([...(excludePaths || []), ...userExclEnv]));
+            let files = [];
+            // ... existing code ...
+            // Analyze loop with cancellation checks
             let filesAnalyzed = 0;
             const totalFiles = files.length;
             const analysisStart = Date.now();
             for (const file of files) {
-              // Simulate file analysis
-              await new Promise(resolve => setTimeout(resolve, 10)); // Simulate async work
+              ensureNotCancelled();
+              await new Promise(resolve => setTimeout(resolve, 10));
               filesAnalyzed++;
-              const analysisProgress = 50 + Math.round((filesAnalyzed / totalFiles) * 30); // Progress from 50% to 80%
+              const analysisProgress = 50 + Math.round((filesAnalyzed / totalFiles) * 30);
               job.progress = analysisProgress;
               this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
             }
             const analysisMs = Date.now() - analysisStart;
-            
+            ensureNotCancelled();
             const detected = await buildDetected(workspaceRoot, files, job.payload.repoUrl || '');
             const meta = await repoAnalyzer.getCommitMetadata(workspaceRoot);
             detected.versionControl = {
@@ -576,23 +564,25 @@ class JobQueue extends EventEmitter {
             workspaceRoot = String(job.payload.localPath).trim();
             updateProgress(2);
             const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
-+            const excludePathsLocal = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
-+            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
-+            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
-+            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
-+            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
-+            const mergedExcludes = Array.from(new Set([...(excludePathsLocal || []), ...userExclEnv]));
-+            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+            const excludePathsLocal = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
+            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
+            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
+            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
+            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
+            const mergedExcludes = Array.from(new Set([...(excludePathsLocal || []), ...userExclEnv]));
+            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
             console.log(`Found ${files.length} files to analyze from local path`);
             let filesAnalyzed = 0;
             const totalFiles = files.length;
             for (const file of files) {
+              ensureNotCancelled();
               await new Promise(resolve => setTimeout(resolve, 10));
               filesAnalyzed++;
               const analysisProgress = 50 + Math.round((filesAnalyzed / totalFiles) * 30);
               job.progress = analysisProgress;
               this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
             }
+            ensureNotCancelled();
             const detected = await buildDetected(workspaceRoot, files, job.payload.localPath || '');
             const baselineMapping = {};
             for (const f of Object.keys(detected.features)) {
@@ -600,7 +590,7 @@ class JobQueue extends EventEmitter {
             }
             job.result = this._buildFixtureResult(job, files, detected);
             job.result.baseline = baselineMapping;
-  
+
             if (this.useDatabase && scan) {
               scan.features = new Map(Object.entries(detected.features));
               scan.baselineMapping = new Map(Object.entries(baselineMapping));
@@ -618,17 +608,29 @@ class JobQueue extends EventEmitter {
               scan.exportOptions = detected.exportOptions;
             }
           } else if (job.payload && job.payload.zipBuffer) {
+            ensureNotCancelled();
             workspaceRoot = await repoAnalyzer.unzipBuffer(Buffer.from(job.payload.zipBuffer, 'base64'));
             updateProgress(2);
             const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
-+            const excludePathsZip = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
-+            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
-+            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
-+            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
-+            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
-+            const mergedExcludes = Array.from(new Set([...(excludePathsZip || []), ...userExclEnv]));
-+            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+            const excludePathsZip = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
+            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
+            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
+            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
+            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
+            const mergedExcludes = Array.from(new Set([...(excludePathsZip || []), ...userExclEnv]));
+            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
             console.log(`Found ${files.length} files to analyze from uploaded zip`);
+            let filesAnalyzed = 0;
+            const totalFiles = files.length;
+            for (const file of files) {
+              ensureNotCancelled();
+              await new Promise(resolve => setTimeout(resolve, 10));
+              filesAnalyzed++;
+              const analysisProgress = 50 + Math.round((filesAnalyzed / totalFiles) * 30);
+              job.progress = analysisProgress;
+              this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
+            }
+            ensureNotCancelled();
             const detected = await buildDetected(workspaceRoot, files, job.payload.repoUrl || '');
             const baselineMapping = {};
             for (const f of Object.keys(detected.features)) {
@@ -636,7 +638,7 @@ class JobQueue extends EventEmitter {
             }
             job.result = this._buildFixtureResult(job, files, detected);
             job.result.baseline = baselineMapping;
-  
+
             if (this.useDatabase && scan) {
               scan.features = new Map(Object.entries(detected.features));
               scan.baselineMapping = new Map(Object.entries(baselineMapping));
@@ -795,6 +797,24 @@ class JobQueue extends EventEmitter {
     }
     
     return null;
+  }
+
+  async cancelJob(id) {
+    const job = await this.getJob(id);
+    if (!job) return { found: false, changed: false, status: 'not_found' };
+    if (['done', 'failed', 'cancelled'].includes(job.status)) {
+      return { found: true, changed: false, status: job.status };
+    }
+    job.cancelRequested = true;
+    // If job is not active, cancel immediately and remove from pending
+    if (!this.activeJobs.has(id)) {
+      job.status = 'cancelled';
+      job.result = { cancelled: true, reason: 'user' };
+      this.pending = this.pending.filter(j => j.id !== id);
+      await this._updateJobInDb(job);
+      this.emit('done', { id: job.id, result: job.result });
+    }
+    return { found: true, changed: true, status: job.status || 'processing' };
   }
   
   _convertFromDbModel(dbJob) {

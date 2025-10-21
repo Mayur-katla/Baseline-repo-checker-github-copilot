@@ -17,4 +17,18 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// POST /api/jobs/:id/cancel - request job cancellation
+router.post('/:id/cancel', async (req, res) => {
+  try {
+    const result = await queue.cancelJob(req.params.id);
+    if (!result.found) return res.status(404).json({ error: 'Job not found' });
+    if (!result.changed) return res.status(409).json({ error: `Job already ${result.status}` });
+    return res.json({ id: req.params.id, status: result.status });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`Error cancelling job ${req.params.id}:`, err);
+    return res.status(500).json({ error: 'Failed to cancel job' });
+  }
+});
+
 module.exports = router;

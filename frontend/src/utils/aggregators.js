@@ -131,9 +131,90 @@ export function computeAnalytics(displayData) {
   };
 }
 
-export function mergeSection(displayData, section, fallback = {}) {
+export function deriveFeatureDetectionFallbacks(displayData) {
+  const env = displayData?.environment || {};
+  const arch = displayData?.architecture || {};
+  const depsObj = env?.dependencies || {};
+  const depInventory = Array.isArray(env?.dependencyInventory) ? env.dependencyInventory.map((d) => d?.name).filter(Boolean) : [];
+  const dependencies = depInventory.length ? depInventory : Object.keys(depsObj || {});
+  const frameworksCandidates = [
+    ...(Array.isArray(env?.primaryFrameworks) ? env.primaryFrameworks : []),
+    ...(Array.isArray(arch?.frameworks) ? arch.frameworks : []),
+  ].map((f) => String(f)).filter(Boolean);
+  const uiFrameworks = Array.from(new Set(frameworksCandidates.filter((f) => /react|angular|vue|svelte|next|nuxt|ember|solid|preact/i.test(f))));
+
+  const configFiles = Array.isArray(arch?.configFiles) ? arch.configFiles : [];
+  const testingCandidates = new Set();
+  dependencies.forEach((d) => {
+    const name = String(d);
+    if (/jest/i.test(name)) testingCandidates.add('Jest');
+    if (/mocha/i.test(name)) testingCandidates.add('Mocha');
+    if (/vitest/i.test(name)) testingCandidates.add('Vitest');
+    if (/karma/i.test(name)) testingCandidates.add('Karma');
+    if (/jasmine/i.test(name)) testingCandidates.add('Jasmine');
+    if (/ava/i.test(name)) testingCandidates.add('AVA');
+    if (/cypress/i.test(name)) testingCandidates.add('Cypress');
+    if (/playwright/i.test(name)) testingCandidates.add('Playwright');
+  });
+  configFiles.forEach((f) => {
+    if (/jest\.config\.js/i.test(f)) testingCandidates.add('Jest');
+    if (/karma\.conf\.js/i.test(f)) testingCandidates.add('Karma');
+    if (/protractor\.conf\.js/i.test(f)) testingCandidates.add('Protractor');
+  });
+
+  const apiLayer = Array.from(new Set(
+    dependencies
+      .map((d) => String(d))
+      .map((name) => {
+        if (/express/i.test(name)) return 'Express';
+        if (/koa/i.test(name)) return 'Koa';
+        if (/fastify/i.test(name)) return 'Fastify';
+        if (/flask/i.test(name)) return 'Flask';
+        if (/fastapi/i.test(name)) return 'FastAPI';
+        if (/django/i.test(name)) return 'Django';
+        if (/spring|spring-boot/i.test(name)) return 'Spring Boot';
+        if (/hibernate/i.test(name)) return 'Hibernate';
+        if (/gin/i.test(name)) return 'Gin';
+        if (/fiber/i.test(name)) return 'Fiber';
+        if (/rails/i.test(name)) return 'Rails';
+        if (/laravel/i.test(name)) return 'Laravel';
+        return null;
+      })
+      .filter(Boolean)
+  ));
+
+  const cicd = [];
+  configFiles.forEach((f) => {
+    if (/\.github\/workflows\/.+\.ya?ml$/i.test(f)) cicd.push('GitHub Actions');
+    if (/\.gitlab-ci\.ya?ml/i.test(f)) cicd.push('GitLab CI');
+    if (/azure-pipelines\.ya?ml/i.test(f)) cicd.push('Azure Pipelines');
+    if (/circleci\/config\.ya?ml/i.test(f)) cicd.push('CircleCI');
+  });
+
   return {
-    ...(displayData?.[section] || {}),
+    uiFrameworks,
+    testingFrameworks: Array.from(testingCandidates),
+    apiLayer,
+    cicd: Array.from(new Set(cicd)),
+  };
+}
+
+export function mergeSection(displayData, section, fallback = {}) {
+  const base = { ...(displayData?.[section] || {}) };
+  if (section === 'projectFeatures') {
+    const derived = deriveFeatureDetectionFallbacks(displayData);
+    const pick = (arr, fb) => (Array.isArray(arr) && arr.length ? arr : (Array.isArray(fb) ? fb : []));
+    return {
+      ...base,
+      uiFrameworks: pick(base.uiFrameworks, derived.uiFrameworks),
+      testingFrameworks: pick(base.testingFrameworks, derived.testingFrameworks),
+      apiLayer: pick(base.apiLayer, derived.apiLayer),
+      cicd: pick(base.cicd, derived.cicd),
+      ...fallback,
+    };
+  }
+  return {
+    ...base,
     ...fallback,
   };
 }

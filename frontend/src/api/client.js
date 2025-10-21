@@ -10,6 +10,17 @@ const client = axios.create({ baseURL, timeout: 15000 });
 client.interceptors.request.use((config) => {
   // Ensure absolute baseURL and JSON headers
   config.headers = Object.assign({ 'Content-Type': 'application/json' }, config.headers || {});
+  // Attach GitHub token from Settings if available
+  try {
+    const settingsRaw = isBrowser ? localStorage.getItem('baseline-settings') : null;
+    if (settingsRaw) {
+      const settings = JSON.parse(settingsRaw || '{}');
+      const token = settings.githubToken;
+      if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+  } catch {}
   return config;
 });
 
@@ -36,7 +47,7 @@ client.interceptors.response.use(
     // Consistent error logging for HTTP failures
     logError({
       module: 'apiClient',
-      location: `${(error?.config?.method || '').toUpperCase()} ${error?.config?.url || ''}`,
+      location: `${(error?.config?.method || '').toUpperCase()} ${(error?.config?.url || '')}`,
       message: message,
       context: { status, baseURL: derivedBaseURL }
     }, error);
@@ -44,15 +55,17 @@ client.interceptors.response.use(
   }
 );
 
-export async function poll(fn, { interval = 2000, timeout = 60000 } = {}) {
+export default client;
+export async function poll(fn, { interval = 1000, timeout = 15000 } = {}) {
   const start = Date.now();
-  // eslint-disable-next-line no-constant-condition
   while (true) {
-    const result = await fn();
-    if (result?.status !== 202) return result;
-    if (Date.now() - start > timeout) throw new Error('Polling timed out');
-    await new Promise((r) => setTimeout(r, interval));
+    try {
+      const res = await fn();
+      if (res && res.data) return res;
+    } catch (e) {
+      // surface non-timeout errors to caller after timeout
+    }
+    if (Date.now() - start > timeout) throw new Error('Polling timeout');
+    await new Promise(r => setTimeout(r, interval));
   }
 }
-
-export default client;

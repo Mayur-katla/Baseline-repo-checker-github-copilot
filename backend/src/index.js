@@ -256,42 +256,53 @@ app.post(
         return res.status(400).json({ error: 'Could not determine repository owner and name from URL.' });
       }
 
+      // Prefer token from Authorization header or body.token, fallback to env
+      let token = (process.env.GITHUB_TOKEN || '').trim();
+      const authHeader = String(req.headers.authorization || '').trim();
+      if (authHeader && /^Bearer\s+/.test(authHeader)) {
+        token = authHeader.replace(/^Bearer\s+/i, '').trim() || token;
+      } else if (typeof req.body.token === 'string' && req.body.token.trim().length > 0) {
+        token = req.body.token.trim();
+      }
+
+      if (!token) {
+        return res.status(400).json({ error: 'Missing GitHub token. Set server GITHUB_TOKEN or pass Authorization: Bearer <token>.' });
+      }
+
       const { Octokit } = require('@octokit/rest');
-      const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+      const octokit = new Octokit({ auth: token });
       const branchName = `baseline-modernization-${scanId}`;
 
       // 1. Get default branch
-      const { data: repoData } = await octokit.repos.get({ owner, repo });
-      const baseBranch = repoData.default_branch;
+      let baseBranch = '';
+      try {
+        const { data: repoData } = await octokit.repos.get({ owner, repo });
+        baseBranch = repoData.default_branch;
+      } catch (err) {
+        const status = err?.status || 0;
+        const msg = status === 404 ? 'Repository not found' : status === 403 ? 'Insufficient permissions for repository' : 'Failed to fetch repository metadata';
+        return res.status(status || 500).json({ error: msg });
+      }
       const { data: refData } = await octokit.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
       const baseSha = refData.object.sha;
 
       // 2. Create new branch
       try {
-        await octokit.git.createRef({
-          owner,
-          repo,
-          ref: `refs/heads/${branchName}`,
-          sha: baseSha,
-        });
+        await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: baseSha });
       } catch (error) {
-        // If branch already exists, we can either fail or try to update it.
-        // For this example, we'll fail.
         if (error.status === 422) {
           return res.status(422).json({ error: `Branch ${branchName} already exists.` });
         }
         throw error;
       }
 
-      // 3. Create a commit with the patch.
-      // Note: This is a simplified example. A real implementation would need to handle creating a blob, then a tree, then a commit.
-      // For this hackathon, we'll use a trick: create a file to represent the patch.
-      const { data: commitData } = await octokit.repos.createOrUpdateFileContents({
+      // 3. Create a commit with the patch (store in patches/ for demo)
+      await octokit.repos.createOrUpdateFileContents({
         owner,
         repo,
         path: `patches/${scanId}.diff`,
         message: title || `Apply baseline modernization patch for scan ${scanId}`,
-        content: Buffer.from(patch).toString('base64'),
+        content: Buffer.from(patch || '').toString('base64'),
         branch: branchName,
       });
 
@@ -314,7 +325,9 @@ app.post(
       });
     } catch (error) {
       console.error(`Error creating pull request via /api/github/pr:`, error);
-      res.status(500).json({ error: 'Failed to create pull request' });
+      const status = error?.status || 500;
+      const msg = error?.message || 'Failed to create pull request';
+      res.status(status).json({ error: msg });
     }
   }
 );

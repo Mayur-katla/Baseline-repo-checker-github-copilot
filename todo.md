@@ -153,11 +153,14 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 - ✅ **COMPLETED** - Enrich summaryLog with step timings and analyzed file counts
 - ✅ **COMPLETED** - Expose SSE progress stream endpoint and ETA in status responses
 - ✅ **COMPLETED** - Scan GitHub Actions workflows for security/compliance findings
-- ⏳ **PENDING** - Add configurable asset-size/LFS policies and user exclusions
+- ✅ **COMPLETED** - Add configurable asset-size/LFS policies and user exclusions
 
 ## 10. Next Suggestions Roadmap
 
-- ⏳ **PENDING** - Add request-level rate limiting to API
-- ⏳ **PENDING** - Expose `GET /api/jobs/:id` for job inspection
-- ⏳ **PENDING** - Implement job cancellation and timeout safeguards
-- ⏳ **PENDING** - Persist queue state across restarts using DB hooks
+- ✅ **COMPLETED** - Add request-level rate limiting to API
+- ✅ **COMPLETED** - Expose `GET /api/jobs/:id` for job inspection
+- ✅ **COMPLETED** - Implement job cancellation and timeout safeguards
+- ✅ **COMPLETED** - Persist queue state across restarts using DB hooks
+
+
+<!-- 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 -->

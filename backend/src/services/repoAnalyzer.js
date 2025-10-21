@@ -5,7 +5,7 @@ const rimraf = require('rimraf');
 const simpleGit = require('simple-git');
 const AdmZip = require('adm-zip');
 const ignore = require('ignore');
-const fetch = require('node-fetch');
+const fetch = globalThis.fetch || (function () { try { return require('node-fetch'); } catch (_) { return undefined; } })();
 const { getCache, setCache, generateCacheKey } = require('./caching');
 
 async function getDirectorySize(dir) {
@@ -191,7 +191,7 @@ async function cloneRepo(repoUrl, options = {}) {
         try {
           const m = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)(?:\.git|$)/i);
           const token = process.env.GITHUB_TOKEN;
-          if (m && token) {
+          if (m && token && fetch) {
             const owner = m[1];
             const repoName = m[2];
             const refOrDefault = requested || '';

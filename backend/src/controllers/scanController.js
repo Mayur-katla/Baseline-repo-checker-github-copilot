@@ -11,7 +11,7 @@ const createScan = async (req, res) => {
     const baseRef = (typeof config.baseRef === 'string' ? config.baseRef : undefined) ?? baseRefTop;
     const compareRef = (typeof config.compareRef === 'string' ? config.compareRef : undefined) ?? compareRefTop;
     const sparsePaths = Array.isArray(config.sparsePaths) ? config.sparsePaths : (Array.isArray(sparsePathsTop) ? sparsePathsTop : []);
-    const job = await queue.createJob({ inputType, repoUrl, localPath, targetBrowsers, zipBuffer, branch, ref, baseRef, compareRef, excludePaths, sparsePaths });
+    const job = await queue.createJob({ inputType, repoUrl, localPath, targetBrowsers, zipBuffer });
     res.status(201).json({ scanId: job.id, status: job.status });
   } catch (error) {
     console.error('Error creating scan:', error);
@@ -34,7 +34,7 @@ const getScanStatus = async (req, res) => {
         const elapsed = Date.now() - createdAt;
         etaMs = Math.round(elapsed * ((100 - progress) / progress));
       }
-      res.json({ scanId: job.id, status: job.status, progress: job.progress, etaMs });
+      res.json({ scanId: job.id, status: job.status, progress: job.progress });
     } else {
       res.status(404).json({ error: 'Scan not found' });
     }
