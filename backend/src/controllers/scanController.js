@@ -3,8 +3,15 @@ const Scan = require('../models/Scan');
 
 const createScan = async (req, res) => {
   try {
-    const { inputType, repoUrl, localPath, targetBrowsers, zipBuffer, branch, excludePaths } = req.body;
-    const job = await queue.createJob({ inputType, repoUrl, localPath, targetBrowsers, zipBuffer, branch, excludePaths });
+    // Accept both baseline contract shape and legacy fields
+    const { inputType, repoUrl, localPath, zipBuffer, branch, ref: refTop, baseRef: baseRefTop, compareRef: compareRefTop, targetBrowsers: targetBrowsersTop, excludePaths: excludePathsTop, sparsePaths: sparsePathsTop, config = {} } = req.body;
+    const targetBrowsers = config.targetBrowsers ?? targetBrowsersTop;
+    const excludePaths = Array.isArray(config.excludePaths) ? config.excludePaths : (Array.isArray(excludePathsTop) ? excludePathsTop : []);
+    const ref = (typeof config.ref === 'string' ? config.ref : undefined) ?? refTop;
+    const baseRef = (typeof config.baseRef === 'string' ? config.baseRef : undefined) ?? baseRefTop;
+    const compareRef = (typeof config.compareRef === 'string' ? config.compareRef : undefined) ?? compareRefTop;
+    const sparsePaths = Array.isArray(config.sparsePaths) ? config.sparsePaths : (Array.isArray(sparsePathsTop) ? sparsePathsTop : []);
+    const job = await queue.createJob({ inputType, repoUrl, localPath, targetBrowsers, zipBuffer, branch, ref, baseRef, compareRef, excludePaths, sparsePaths });
     res.status(201).json({ scanId: job.id, status: job.status });
   } catch (error) {
     console.error('Error creating scan:', error);
@@ -18,7 +25,16 @@ const getScanStatus = async (req, res) => {
   try {
     const job = await queue.getJob(id);
     if (job) {
-      res.json({ scanId: job.id, status: job.status, progress: job.progress });
+      const createdAt = Number(job.createdAt || Date.now());
+      const progress = Number(job.progress || 0);
+      let etaMs = null;
+      if ((job.status === 'done') || progress >= 100) {
+        etaMs = 0;
+      } else if (progress > 0) {
+        const elapsed = Date.now() - createdAt;
+        etaMs = Math.round(elapsed * ((100 - progress) / progress));
+      }
+      res.json({ scanId: job.id, status: job.status, progress: job.progress, etaMs });
     } else {
       res.status(404).json({ error: 'Scan not found' });
     }
@@ -251,6 +267,77 @@ async function getScanImpact(req, res) {
   }
 }
 
+function streamScanProgress(req, res) {
+  const { id } = req.params;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+  let closed = false;
+  const heartbeat = setInterval(() => {
+    try { res.write(':\n\n'); } catch (_) {}
+  }, 30000);
+
+  const send = (event, payload) => {
+    try {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    } catch (_) {}
+  };
+
+  queue.getJob(id).then(job => {
+    if (!job) {
+      send('error', { id, error: 'Scan not found' });
+      cleanup();
+      return;
+    }
+    send('status', { id: job.id, status: job.status, progress: job.progress });
+  }).catch(() => { send('error', { id, error: 'Scan lookup failed' }); });
+
+  const startTime = Date.now();
+
+  const computeEta = (progress) => {
+    if (closed) return 0;
+    const p = Math.min(99, Math.max(1, Number(progress || 0)));
+    const elapsed = Math.max(0, Date.now() - startTime);
+    return Math.round(elapsed * ((100 - p) / p));
+  };
+
+  const onProgress = ({ id: jobId, progress, step }) => {
+    if (jobId !== id) return;
+    send('progress', { id, progress, step, etaMs: computeEta(progress) });
+  };
+
+  const onDone = ({ id: jobId, result }) => {
+    if (jobId !== id) return;
+    send('done', { id, progress: 100, result });
+    cleanup();
+  };
+
+  const onRemoved = ({ id: jobId }) => {
+    if (jobId !== id) return;
+    send('removed', { id });
+    cleanup();
+  };
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    queue.off('progress', onProgress);
+    queue.off('done', onDone);
+    queue.off('removed', onRemoved);
+    try { res.end(); } catch (_) {}
+  };
+
+  req.on('close', cleanup);
+
+  queue.on('progress', onProgress);
+  queue.on('done', onDone);
+  queue.on('removed', onRemoved);
+}
+
 module.exports = {
   createScan,
   getScanStatus,
@@ -259,4 +346,5 @@ module.exports = {
   applyScanChanges,
   compareScans,
   getScanImpact,
+  streamScanProgress,
 };

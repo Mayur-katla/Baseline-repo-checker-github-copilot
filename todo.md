@@ -27,6 +27,7 @@ This document outlines all required changes, enhancements, and optimizations for
 - ✅ **COMPLETED** - Update models and services to reflect changes.
 - ✅ **COMPLETED** - Implement controllers and routes for all API endpoints.
 - ✅ **COMPLETED** - Implement a job queue for handling scan jobs.
+- ✅ **COMPLETED** - Add configurable JobQueue concurrency limit and scheduler.
 - ✅ **COMPLETED** - Implement real-time progress updates via WebSockets.
 - ✅ **COMPLETED** - Refactor tests in `backend/tests/` for streamlined scanning.
 - ✅ **COMPLETED** - Add Python detectors (requirements.txt/pipenv parsing, AST feature checks).
@@ -135,3 +136,28 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 - ✅ **COMPLETED** - Task has been fully implemented and verified
 - 🔄 **IN PROGRESS** - Task is currently being worked on or partially completed
 - ⏳ **PENDING** - Task has not been started yet
+
+## 9. GitHub Scan Logic Enhancements
+
+- ✅ **COMPLETED** - Wire branch selection UI into clone ref used for scanning
+- ✅ **COMPLETED** - Honor excludePaths from API through queue into walkFiles
+- ✅ **COMPLETED** - Support tags/commit SHA refs in clone and checkout
+- ✅ **COMPLETED** - Add partial clone (blobless) and sparse-checkout for large repos
+- ✅ **COMPLETED** - Expand file discovery extensions aligned to Python/Java/Go/ML detectors
+- ✅ **COMPLETED** - Private repo support via GITHUB_TOKEN zipball archive fallback
+- ✅ **COMPLETED** - Handle submodules and Git LFS safely (init/update, skip large blobs)
+- ✅ **COMPLETED** - Persist commit metadata (SHA, branch, default branch) in versionControl
+- ✅ **COMPLETED** - Cache/mirror clones per repo-ref to accelerate repeated scans
+- ✅ **COMPLETED** - Implement retry/backoff for Git/GitHub network failures
+- ✅ **COMPLETED** - Enable incremental PR scans using ref-diff to analyze changed files
+- ✅ **COMPLETED** - Enrich summaryLog with step timings and analyzed file counts
+- ✅ **COMPLETED** - Expose SSE progress stream endpoint and ETA in status responses
+- ✅ **COMPLETED** - Scan GitHub Actions workflows for security/compliance findings
+- ⏳ **PENDING** - Add configurable asset-size/LFS policies and user exclusions
+
+## 10. Next Suggestions Roadmap
+
+- ⏳ **PENDING** - Add request-level rate limiting to API
+- ⏳ **PENDING** - Expose `GET /api/jobs/:id` for job inspection
+- ⏳ **PENDING** - Implement job cancellation and timeout safeguards
+- ⏳ **PENDING** - Persist queue state across restarts using DB hooks

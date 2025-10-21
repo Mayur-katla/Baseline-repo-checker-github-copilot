@@ -31,15 +31,15 @@ Default port: `3001` (configurable via `.env` or environment).
 
 Invalid inputs return `400 Bad Request` with an `errors` array.
 
-## Job Queue & Progress
+## Job Queue & Concurrency
 
-- In-memory FIFO queue (hackathon mode) in `src/jobs/queue.js`
-- Progress steps:
-  - Source preparation (name reflects operation: clone, local read, unzip)
-  - Analysis (languages, dependencies, features)
-  - Compatibility & security checks
-  - Suggestions & report build
-- Real-time updates via WebSockets (`socket.io`)
+- In-memory FIFO queue in `src/jobs/queue.js` with a scheduler enforcing a configurable concurrency limit.
+- Concurrency limit: set `MAX_CONCURRENT_JOBS` (env), default `2`. The scheduler starts pending jobs when active jobs drop below the limit.
+- Job lifecycle: statuses `queued`, `processing`, `done`, `failed`; `progress` emitted via `progress` events and stored when DB is enabled.
+- Sources: `repoUrl`, `localPath`, or `zipBuffer` determine the preparation step shown.
+- Shutdown: `queue.shutdown()` waits for `activeJobs` to reach `0` before resolving.
+- Persistence: if `MONGODB_URI` is configured and initialized, jobs and scans are persisted.
+- Tests: `tests/jobs/queue_concurrency.test.js` validates the concurrency limit.
 
 ## Environment & CORS
 
@@ -53,6 +53,19 @@ Invalid inputs return `400 Bad Request` with an `errors` array.
 ```powershell
 npm test
 ```
+
+## CI Workflow Scanning
+
+Scans `.github/workflows/*.yml` for common security/compliance issues. Findings are included under `securityAndPerformance.ciWorkflows` and summarized in `securityAndPerformance.ciSummary`.
+
+Checks:
+- `pull_request_target` usage (High): elevated permissions on PRs from forks; prefer `pull_request`.
+- Unpinned `uses:` actions (Medium): not pinned to commit SHA.
+- Missing `permissions:` (Medium): define explicit token permissions at workflow/job level.
+- `runs-on: self-hosted` (Medium): ensure trusted/hardened self-hosted runners.
+- `actions/checkout` without `persist-credentials: false` (Medium): disable credential persistence.
+
+The scanner is implemented in `src/services/ciScanner.js` and integrated into overall security analysis.
 
 ## Router Hints Enforcement
 

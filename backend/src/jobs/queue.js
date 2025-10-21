@@ -274,9 +274,12 @@ async function buildDetected(root, files, repoUrl) {
 class JobQueue extends EventEmitter {
   constructor() {
     super();
-    this.jobs = new Map(); // Keep in-memory cache for faster access
-    this.useDatabase = false; // Will be set to true if DB connection is successful
+    this.jobs = new Map();
+    this.useDatabase = false;
     this.activeJobs = new Set();
+    this.pending = [];
+    this.maxConcurrent = Number.parseInt(process.env.MAX_CONCURRENT_JOBS || '2', 10);
+    if (!Number.isFinite(this.maxConcurrent) || this.maxConcurrent <= 0) this.maxConcurrent = 2;
   }
   
   // Initialize database connection
@@ -319,8 +322,9 @@ class JobQueue extends EventEmitter {
       }
     }
     
-    // Start processing
-    this._process(job);
+    // Enqueue and schedule respecting concurrency limits
+    this.pending.push(job);
+    this._scheduleNext();
     return job;
   }
 
@@ -388,7 +392,9 @@ class JobQueue extends EventEmitter {
           job.result = { error: String(error) };
           this.emit('done', { id: job.id, result: job.result });
         } finally {
+            if (workspaceRoot) await repoAnalyzer.cleanup(workspaceRoot);
             this.activeJobs.delete(job.id);
++           this._scheduleNext();
         }
       })();
     } else {
@@ -435,15 +441,65 @@ class JobQueue extends EventEmitter {
   
           if (job.payload && job.payload.repoUrl) {
             console.log(`Processing job ${job.id} with repository URL: ${job.payload.repoUrl}`);
-            workspaceRoot = await repoAnalyzer.cloneRepo(job.payload.repoUrl);
+            const cloneStart = Date.now();
+            workspaceRoot = await repoAnalyzer.cloneRepo(job.payload.repoUrl, { branch: job.payload.branch, ref: job.payload.ref, sparsePaths: Array.isArray(job.payload?.sparsePaths) ? job.payload.sparsePaths : [] });
+            const cloneMs = Date.now() - cloneStart;
             console.log(`Repository cloned successfully to ${workspaceRoot}`);
             
             updateProgress(2);
-            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions: ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html'] });
-            console.log(`Found ${files.length} files to analyze`);
+            const walkStart = Date.now();
+            const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
+-            const excludePaths = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
++            const excludePaths = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
++            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
++            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
++            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
++            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
++            const mergedExcludes = Array.from(new Set([...(excludePaths || []), ...userExclEnv]));
+
+             // Incremental diff: restrict to changed files when baseRef provided
+             const baseRef = typeof job.payload?.baseRef === 'string' ? job.payload.baseRef : undefined;
+             const compareRef = typeof job.payload?.compareRef === 'string' ? job.payload.compareRef : undefined;
+             let changedPaths = [];
+             try {
+               if (baseRef) {
+                 changedPaths = await repoAnalyzer.getChangedPaths(workspaceRoot, baseRef, compareRef);
+               }
+             } catch (_) {}
+
+             let files = [];
+             if (Array.isArray(changedPaths) && changedPaths.length > 0) {
+-              const extSet = new Set(extensions);
+-              const isExcluded = (relPath) => {
+-                const norm = String(relPath).replace(/\\/g, '/');
+-                return excludePaths.some(p => norm.includes(String(p)));
+-              };
+-              files = changedPaths
+-                .filter(p => extSet.has(path.extname(p)))
+-                .filter(p => !isExcluded(p));
+-              console.log(`Incremental scan enabled: ${files.length} changed files`);
++              // Filter changed paths using the same policies as full scan
++              const eligible = await repoAnalyzer.walkFiles(workspaceRoot, {
++                extensions,
++                excludePaths: mergedExcludes,
++                maxFileBytes,
++                skipLfsFiles: skipLfsEnv,
++              });
++              const eligibleSet = new Set(eligible.map((p) => String(p).replace(/\\/g, '/')));
++              files = changedPaths
++                .map(p => String(p).replace(/\\/g, '/'))
++                .filter(p => eligibleSet.has(p));
++              console.log(`Incremental scan enabled: ${files.length} changed files (from ${changedPaths.length} diff entries)`);
+             } else {
+-              files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths });
++              files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+               console.log(`Found ${files.length} files to analyze`);
+             }
+            const walkMs = Date.now() - walkStart;
 
             let filesAnalyzed = 0;
             const totalFiles = files.length;
+            const analysisStart = Date.now();
             for (const file of files) {
               // Simulate file analysis
               await new Promise(resolve => setTimeout(resolve, 10)); // Simulate async work
@@ -452,8 +508,27 @@ class JobQueue extends EventEmitter {
               job.progress = analysisProgress;
               this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
             }
+            const analysisMs = Date.now() - analysisStart;
             
             const detected = await buildDetected(workspaceRoot, files, job.payload.repoUrl || '');
+            const meta = await repoAnalyzer.getCommitMetadata(workspaceRoot);
+            detected.versionControl = {
+              ...(detected.versionControl || {}),
+              branch: job.payload.branch || null,
+              ref: job.payload.ref || null,
+              baseRef: baseRef || null,
+              compareRef: compareRef || null,
+              commitSha: meta.commitSha || '',
+              defaultBranch: meta.defaultBranch || ''
+            };
+            try {
+              detected.summaryLog = Array.isArray(detected.summaryLog) ? detected.summaryLog : [];
+              const filesChangedCount = (Array.isArray(changedPaths) && changedPaths.length > 0) ? files.length : 0;
+              detected.summaryLog.push(
+                { ts: Date.now(), msg: `Step timing: clone ${cloneMs}ms, walk ${walkMs}ms, analysis ${analysisMs}ms` },
+                { ts: Date.now(), msg: `Files discovered: ${files.length}, analyzed: ${totalFiles}, changed: ${filesChangedCount}` }
+              );
+            } catch (_) {}
             console.log(`Detected features in ${Object.keys(detected.features).length} files`);
             
             const baselineMapping = {};
@@ -462,13 +537,13 @@ class JobQueue extends EventEmitter {
             }
             job.result = this._buildFixtureResult(job, files, detected);
             job.result.baseline = baselineMapping;
-  
+
             updateProgress(3);
             
             // Recalculate impactScore based on dynamic formula
             try {
               const filesScanned = files.length;
-              const filesChanged = 0; // proxy for changes
+              const filesChanged = (Array.isArray(changedPaths) && changedPaths.length > 0) ? files.length : 0;
               const polyfillsRemoved = 0;
               const impactScore = filesScanned > 0 ? Math.round(((filesChanged + polyfillsRemoved) / filesScanned) * 100) : 0;
               job.result.summary = {
@@ -500,7 +575,14 @@ class JobQueue extends EventEmitter {
             console.log(`Processing job ${job.id} with local path: ${job.payload.localPath}`);
             workspaceRoot = String(job.payload.localPath).trim();
             updateProgress(2);
-            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions: ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html'] });
+            const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
++            const excludePathsLocal = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
++            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
++            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
++            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
++            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
++            const mergedExcludes = Array.from(new Set([...(excludePathsLocal || []), ...userExclEnv]));
++            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
             console.log(`Found ${files.length} files to analyze from local path`);
             let filesAnalyzed = 0;
             const totalFiles = files.length;
@@ -537,7 +619,16 @@ class JobQueue extends EventEmitter {
             }
           } else if (job.payload && job.payload.zipBuffer) {
             workspaceRoot = await repoAnalyzer.unzipBuffer(Buffer.from(job.payload.zipBuffer, 'base64'));
-            const files = await repoAnalyzer.walkFiles(workspaceRoot);
+            updateProgress(2);
+            const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
++            const excludePathsZip = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
++            const maxFileMBEnv = Number(process.env.SCAN_MAX_FILE_MB || 0);
++            const maxFileBytes = maxFileMBEnv > 0 ? maxFileMBEnv * 1024 * 1024 : undefined;
++            const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
++            const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
++            const mergedExcludes = Array.from(new Set([...(excludePathsZip || []), ...userExclEnv]));
++            const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+            console.log(`Found ${files.length} files to analyze from uploaded zip`);
             const detected = await buildDetected(workspaceRoot, files, job.payload.repoUrl || '');
             const baselineMapping = {};
             for (const f of Object.keys(detected.features)) {
@@ -612,6 +703,7 @@ class JobQueue extends EventEmitter {
         } finally {
             if (workspaceRoot) await repoAnalyzer.cleanup(workspaceRoot);
             this.activeJobs.delete(job.id);
+            this._scheduleNext();
         }
       })();
     }
@@ -656,9 +748,29 @@ class JobQueue extends EventEmitter {
       createdAt: new Date(),
     };
 
-    this.jobs[jobId] = job;
+    this.jobs.set(jobId, job);
     this.startProcessing();
     return job;
+  }
+
+  startProcessing() {
+    for (const job of this.jobs.values()) {
+      if ((job.status === 'pending' || job.status === 'queued') &&
+          !this.activeJobs.has(job.id) &&
+          !this.pending.find(j => j.id === job.id)) {
+        this.pending.push(job);
+      }
+    }
+    this._scheduleNext();
+  }
+
+  _scheduleNext() {
+    while (this.pending.length > 0 && this.activeJobs.size < this.maxConcurrent) {
+      const nextJob = this.pending.shift();
+      if (!this.activeJobs.has(nextJob.id)) {
+        this._process(nextJob);
+      }
+    }
   }
 
   async getJob(id) {

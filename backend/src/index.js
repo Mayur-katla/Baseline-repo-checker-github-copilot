@@ -12,8 +12,10 @@ const uuid = require('uuid');
 const app = express();
 const server = http.createServer(app);
 const scanRoutes = require('./routes/scans');
-const { BROWSERS } = require('./services/baseline');
 
+const jobsRoutes = require('./routes/jobs');
+const rateLimiter = require('./middleware/rateLimit');
+const { BROWSERS } = require('./services/baseline');
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:5174,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:5174')
   .split(',')
   .map(s => s.trim());
@@ -37,7 +39,14 @@ const io = new Server(server, {
 app.use(cors({ origin: originCheck, credentials: true }));
 app.use(express.json({ limit: '13mb' }));
 
+// Apply rate limiting only outside test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.use(rateLimiter());
+}
+
 app.use('/api/scans', scanRoutes);
+
+app.use('/api/jobs', jobsRoutes);
 
 // Baseline browsers endpoint
 app.get('/api/browsers', (req, res) => {

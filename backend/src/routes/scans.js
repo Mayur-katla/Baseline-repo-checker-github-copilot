@@ -54,6 +54,7 @@ const validateCreateScan = [
 
 router.post('/', validateCreateScan, scanController.createScan);
 router.get('/:id/status', scanController.getScanStatus);
+router.get('/:id/stream', scanController.streamScanProgress);
 router.get('/:id/result', scanController.getScanResult);
 // Validation middleware for compare scans
 const validateCompareScans = [
@@ -77,7 +78,8 @@ const validateCompareScans = [
 ];
 
 router.get('/compare', validateCompareScans, scanController.compareScans);
-router.get('/:id', scanController.getScanResult);
+// Removed conflicting route that shadowed GET /api/scans/:id DB fetch
+// router.get('/:id', scanController.getScanResult);
 router.get('/:id/impact', scanController.getScanImpact);
 router.get('/:id/suggestions', scanController.getScanSuggestions);
 router.post('/:id/apply', scanController.applyScanChanges);

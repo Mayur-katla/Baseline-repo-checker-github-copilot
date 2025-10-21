@@ -778,6 +778,68 @@ async function detectEnvironmentAndVersioning(repoPath, packageJson) {
   return environment;
 }
 
+  async function scanCiWorkflows(repoPath) {
+    const findings = [];
+    try {
+      const ymlFiles = await walkFiles(repoPath, { includeHidden: true, extensions: ['.yml', '.yaml'] });
+      const wfFiles = ymlFiles.filter(rel => /(^|\/|\\)\.github(\/|\\)workflows(\/|\\)/.test(rel));
+      for (const rel of wfFiles) {
+        const abs = path.join(repoPath, rel);
+        let content = '';
+        try { content = await fs.readFile(abs, 'utf8'); } catch { continue; }
+        const lower = content.toLowerCase();
+        const fileName = path.basename(rel);
+    
+        // pull_request_target event runs with elevated permissions
+        if (/\bon\s*:\s*[\s\S]*pull_request_target\b/m.test(lower)) {
+          findings.push({
+            type: 'GitHub Actions',
+            title: 'Workflow triggered by pull_request_target',
+            severity: 'High',
+            file: fileName,
+            description: 'pull_request_target runs with elevated permissions; prefer pull_request with least privileges.'
+          });
+        }
+    
+        // Missing explicit permissions at workflow/job level
+        const hasPermissions = /\n\s*permissions\s*:/i.test(content);
+        if (!hasPermissions) {
+          findings.push({
+            type: 'GitHub Actions',
+            title: 'Missing explicit permissions for GITHUB_TOKEN',
+            severity: 'Medium',
+            file: fileName,
+            description: 'Define permissions: at workflow/job level to enforce least privilege.'
+          });
+        }
+    
+        // Self-hosted runner caution
+        if (/runs-on\s*:\s*self-hosted/i.test(content)) {
+          findings.push({
+            type: 'GitHub Actions',
+            title: 'Self-hosted runner used',
+            severity: 'Medium',
+            file: fileName,
+            description: 'Ensure self-hosted runners are trusted and hardened.'
+          });
+        }
+    
+        // Unpinned action versions (not pinned to commit SHA)
+        const hasCheckout = /uses\s*:\s*actions\/checkout@/i.test(content);
+        const hasPersistFalse = /persist-credentials\s*:\s*false/i.test(content);
+        if (hasCheckout && !hasPersistFalse) {
+          findings.push({
+            type: 'GitHub Actions',
+            title: 'Checkout persists credentials',
+            severity: 'Medium',
+            file: fileName,
+            description: 'Set with: persist-credentials: false to avoid leaking GITHUB_TOKEN.'
+          });
+        }
+      }
+    } catch (_) {}
+    return findings;
+  }
   async function detectSecurityAndPerformance(repoPath) {
     const securityAndPerformance = { securityVulnerabilities: [], performanceBottlenecks: [], sensitiveFiles: [], insecureApiCalls: [], missingPolicies: [], inefficientCode: [], largeAssets: [], bottlenecks: [] };
 
@@ -808,7 +870,8 @@ async function detectEnvironmentAndVersioning(repoPath, packageJson) {
         const fullPath = path.join(repoPath, file);
         try {
           const stat = await fs.stat(fullPath);
-          if (stat.size > 100000) {
+          const thresholdKb = Number(process.env.SCAN_LARGE_ASSET_THRESHOLD_KB || 100);
+          if (stat.size > thresholdKb * 1024) {
             largeFiles.push({ file: path.basename(file), size: stat.size });
           }
         } catch (_) {}
@@ -1007,6 +1070,20 @@ async function detectEnvironmentAndVersioning(repoPath, packageJson) {
         }
       }
     } catch (_) {}
+
+    // CI workflow scanning (GitHub Actions)
+    try {
+      const ciFindings = await scanCiWorkflows(repoPath);
+      securityAndPerformance.ciWorkflows = ciFindings;
+      securityAndPerformance.ciSummary = {
+        workflows: ciFindings.length,
+        high: ciFindings.filter(f => f.severity === 'High').length,
+        medium: ciFindings.filter(f => f.severity === 'Medium').length,
+        low: ciFindings.filter(f => f.severity === 'Low').length,
+      };
+    } catch (_) {
+      securityAndPerformance.ciWorkflows = [];
+    }
 
     return securityAndPerformance;
   }

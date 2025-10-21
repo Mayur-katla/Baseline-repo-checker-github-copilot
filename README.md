@@ -59,7 +59,7 @@ Example request:
 ## Environment
 
 - Frontend: `VITE_API_URL` (default `http://localhost:3001/api`)
-- Backend: `PORT`, `FRONTEND_URL`, `MONGODB_URI`
+- Backend: `PORT`, `FRONTEND_URL`, `MONGODB_URI`, `CACHE_MAX_MB`, `CACHE_TTL_DAYS`
 - See `docker-compose.yml` for defaults
 
 ## Documentation & Roadmap
