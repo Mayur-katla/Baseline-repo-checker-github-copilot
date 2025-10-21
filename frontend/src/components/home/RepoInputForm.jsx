@@ -67,14 +67,15 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
   };
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-xl rounded-3xl p-8 border border-gray-700/50 shadow-2xl">
-      <h2 className="text-3xl font-bold text-white mb-8">Configure Your Scan</h2>
+    // Container: light-friendly defaults, dark variants
+    <div className="bg-white text-gray-900 dark:bg-gray-800/50 dark:text-white backdrop-blur-xl rounded-3xl p-8 border border-gray-200 dark:border-gray-700/50 shadow-2xl">
+      <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Configure Your Scan</h2>
 
       {error && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-red-500/20 text-red-200 p-4 rounded-lg mb-6 border border-red-500/50"
+          className="bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-200 p-4 rounded-lg mb-6 border border-red-200 dark:border-red-500/50"
         >
           {error}
         </motion.div>
@@ -82,12 +83,12 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
 
       <form onSubmit={handleSubmit}>
         <div className="mb-8">
-          <label className="block text-sm font-medium text-gray-400 mb-3">Repository Source</label>
-          <div className="grid grid-cols-4 gap-2 rounded-lg bg-gray-900/50 p-1">
-            <button type="button" onClick={() => setInputType('github')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'github' ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'}`}><FiGithub className="inline mr-2"/>GitHub</button>
-            <button type="button" onClick={() => setInputType('local')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'local' ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'}`}><FiFolder className="inline mr-2"/>Local</button>
-            <button type="button" onClick={() => setInputType('url')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'url' ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'}`}><FiLink className="inline mr-2"/>Git URL</button>
-            <button type="button" onClick={() => setInputType('zip')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'zip' ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'}`}><FiArchive className="inline mr-2"/>ZIP Upload</button>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-400 mb-3">Repository Source</label>
+          <div className="grid grid-cols-4 gap-2 rounded-lg bg-gray-100 dark:bg-gray-900/50 p-1">
+            <button type="button" onClick={() => setInputType('github')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'github' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700/50'}`}><FiGithub className="inline mr-2"/>GitHub</button>
+            <button type="button" onClick={() => setInputType('local')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'local' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700/50'}`}><FiFolder className="inline mr-2"/>Local</button>
+            <button type="button" onClick={() => setInputType('url')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'url' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700/50'}`}><FiLink className="inline mr-2"/>Git URL</button>
+            <button type="button" onClick={() => setInputType('zip')} className={`relative px-4 py-2 text-sm font-semibold rounded-md transition-colors ${inputType === 'zip' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700/50'}`}><FiArchive className="inline mr-2"/>ZIP Upload</button>
           </div>
         </div>
 
@@ -95,35 +96,35 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
           {inputType === 'github' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
               <FiGithub className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input id="repoUrl" type="text" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://github.com/username/repo" disabled={loading} className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all" />
-              <p className="text-xs text-gray-500 mt-2">Enter the URL of a public GitHub repository.</p>
+              <input id="repoUrl" type="text" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://github.com/username/repo" disabled={loading} className="w-full bg-white border-2 border-gray-300 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-white" />
+              <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">Enter the URL of a public GitHub repository.</p>
             </motion.div>
           )}
           {inputType === 'local' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
               <FiFolder className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input id="localPath" type="text" value={localPath} onChange={(e) => setLocalPath(e.target.value)} placeholder="C:\\path\\to\\your\\project" required disabled={loading} className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all" />
-              <p className="text-xs text-gray-500 mt-2">Enter the absolute path to your local project directory.</p>
+              <input id="localPath" type="text" value={localPath} onChange={(e) => setLocalPath(e.target.value)} placeholder="C:\\path\\to\\your\\project" required disabled={loading} className="w-full bg-white border-2 border-gray-300 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-white" />
+              <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">Enter the absolute path to your local project directory.</p>
             </motion.div>
           )}
           {inputType === 'url' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
               <FiLink className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input id="gitUrl" type="text" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://gitlab.com/username/repo.git" disabled={loading} className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all" />
-              <p className="text-xs text-gray-500 mt-2">Enter any Git repository URL (GitLab, Bitbucket, etc.).</p>
+              <input id="gitUrl" type="text" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://gitlab.com/username/repo.git" disabled={loading} className="w-full bg-white border-2 border-gray-300 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-white" />
+              <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">Enter any Git repository URL (GitLab, Bitbucket, etc.).</p>
             </motion.div>
           )}
           {inputType === 'zip' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
               <FiArchive className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input id="zipFile" type="file" accept=".zip" onChange={handleZipFileChange} disabled={loading} className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg pl-12 pr-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all" />
-              <p className="text-xs text-gray-500 mt-2">Upload a ZIP archive of your project. We only perform static analysis.</p>
+              <input id="zipFile" type="file" accept=".zip" onChange={handleZipFileChange} disabled={loading} className="w-full bg-white border-2 border-gray-300 rounded-lg pl-12 pr-4 py-2 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-white" />
+              <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">Upload a ZIP archive of your project. We only perform static analysis.</p>
             </motion.div>
           )}
         </div>
 
         <div className="mb-10">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Target Browsers</h3>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-400 mb-3">Target Browsers</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {browserOptions.map((browser) => {
               const isSelected = targetBrowsers.includes(browser.id);
@@ -132,7 +133,7 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
                   type="button"
                   key={browser.id}
                   onClick={() => handleBrowserToggle(browser.id)}
-                  className={`relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg transition-all duration-200 border-2 ${isSelected ? 'bg-indigo-600/20 border-indigo-500 text-white' : 'bg-gray-900/50 border-gray-700/50 text-gray-400 hover:border-gray-500'}`}
+                  className={`relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg transition-all duration-200 border-2 ${isSelected ? 'bg-indigo-600/20 border-indigo-500 text-indigo-700 dark:text-white' : 'bg-gray-100 border-gray-300 text-gray-700 hover:border-gray-400 dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-gray-400'}`}
                   aria-pressed={isSelected}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -147,7 +148,7 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
 
         {/* Advanced Options */}
         <div className="mb-8">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Advanced Options (optional)</h3>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-400 mb-3">Advanced Options (optional)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <label htmlFor="branch" className="sr-only">Branch</label>
@@ -158,9 +159,9 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
                 onChange={(e) => setBranch(e.target.value)}
                 placeholder="Branch (e.g., main, develop)"
                 disabled={loading}
-                className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all"
+                className="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-white"
               />
-              <p className="text-xs text-gray-500 mt-2">Specify a branch to scan. Leave blank to use default.</p>
+              <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">Specify a branch to scan. Leave blank to use default.</p>
             </div>
             <div className="relative">
               <label htmlFor="excludePaths" className="sr-only">Exclude Paths</label>
@@ -168,18 +169,18 @@ const RepoInputForm = ({ onSubmit, loading, error }) => {
                 id="excludePaths"
                 value={excludeText}
                 onChange={(e) => setExcludeText(e.target.value)}
-                placeholder={"Exclude paths (comma or newline separated)\nExamples: node_modules, dist, build"}
+                placeholder={`Exclude paths (comma or newline separated)\nExamples: node_modules, dist, build`}
                 rows={3}
                 disabled={loading}
-                className="w-full bg-gray-900/50 border-2 border-gray-700/50 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all"
+                className="w-full bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all dark:bg-gray-900/50 dark:border-gray-700/50 dark:text-white"
               />
-              <p className="text-xs text-gray-500 mt-2">We skip these paths during analysis.</p>
+              <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">We skip these paths during analysis.</p>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-4 border-t border-gray-700/50 pt-6">
-          <button type="button" onClick={() => { setRepoUrl(''); setLocalPath(''); setZipBase64(''); setBranch(''); setExcludeText(''); }} disabled={loading} className="px-6 py-2 text-sm font-semibold text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors">Reset</button>
+        <div className="flex justify-end gap-4 border-t border-gray-200 dark:border-gray-700/50 pt-6">
+          <button type="button" onClick={() => { setRepoUrl(''); setLocalPath(''); setZipBase64(''); setBranch(''); setExcludeText(''); }} disabled={loading} className="px-6 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-gray-700/50">Reset</button>
           <motion.button 
             type="submit" 
             disabled={loading || targetBrowsers.length === 0}
