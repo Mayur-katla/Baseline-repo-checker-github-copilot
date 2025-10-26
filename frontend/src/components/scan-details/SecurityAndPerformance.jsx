@@ -44,7 +44,7 @@ const SecurityAndPerformance = ({ data }) => {
   }, [insights.length]);
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8">
+    <div className="bg-white/70 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 mt-8">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
         <FiShield className="mr-3 text-indigo-400" />
         Security & Performance

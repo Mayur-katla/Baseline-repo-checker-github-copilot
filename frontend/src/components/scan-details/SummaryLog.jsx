@@ -37,7 +37,7 @@ const SummaryLog = ({ data }) => {
   };
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8">
+    <div className="bg-white/70 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 mt-8">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
         <FiFile className="mr-3 text-indigo-400" />
         Summary Log
@@ -54,7 +54,7 @@ const SummaryLog = ({ data }) => {
         <h3 className="font-semibold text-white mb-3 flex items-center">
           <FiAlertCircle className="mr-2 text-red-400"/> Error Logs
         </h3>
-        <div className="bg-black/30 rounded-lg p-4 max-h-40 overflow-y-auto font-mono text-xs text-red-300">
+        <div className="bg-gray-100 dark:bg-black/30 rounded-lg p-4 max-h-40 overflow-y-auto font-mono text-xs text-red-600 dark:text-red-300 border border-gray-300 dark:border-gray-700/50">
           {errorLogs.length > 0 ? (
             errorLogs.map((log, index) => <p key={index}>- {log}</p>)
           ) : (

@@ -21,7 +21,7 @@ const RibbonPopup = ({ open, onClose, autoCloseMs = 5000, onViewHighlights }) =>
         >
           {/* Overlay */}
           <motion.div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -39,7 +39,7 @@ const RibbonPopup = ({ open, onClose, autoCloseMs = 5000, onViewHighlights }) =>
             exit={{ scale: 0.95, opacity: 0, y: -10 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
           >
-            <div className="relative w-full max-w-md rounded-2xl border border-gray-700/50 bg-gray-900/80 shadow-2xl">
+            <div className="relative w-full max-w-md rounded-2xl border border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 shadow-2xl">
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold bg-indigo-600 text-white shadow">
                 Completed
               </div>
@@ -57,7 +57,7 @@ const RibbonPopup = ({ open, onClose, autoCloseMs = 5000, onViewHighlights }) =>
                   )}
                   <button
                     onClick={() => onClose?.()}
-                    className="px-4 py-2 text-sm font-semibold text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors"
+                    className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
                   >
                     Close
                   </button>

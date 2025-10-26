@@ -88,7 +88,7 @@ const EnvironmentAndVersioning = ({ data }) => {
   const vulnCount = Array.isArray(vulnerabilities) ? vulnerabilities.length : 0;
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8">
+    <div className="bg-white/70 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 mt-8">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
         <FiPackage className="mr-3 text-indigo-400" />
         Environment & Versioning
@@ -96,15 +96,15 @@ const EnvironmentAndVersioning = ({ data }) => {
 
       {/* Runtime Versions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-black/20 rounded-lg p-4 border border-gray-700/30">
+        <div className="bg-gray-100 dark:bg-black/20 rounded-lg p-4 border border-gray-300 dark:border-gray-700/30">
           <h3 className="font-semibold text-white mb-2">Node</h3>
           <p className="font-mono text-sm text-gray-200">{runtimeVersions.node}</p>
         </div>
-        <div className="bg-black/20 rounded-lg p-4 border border-gray-700/30">
+        <div className="bg-gray-100 dark:bg-black/20 rounded-lg p-4 border border-gray-300 dark:border-gray-700/30">
           <h3 className="font-semibold text-white mb-2">npm</h3>
           <p className="font-mono text-sm text-gray-200">{runtimeVersions.npm}</p>
         </div>
-        <div className="bg-black/20 rounded-lg p-4 border border-gray-700/30">
+        <div className="bg-gray-100 dark:bg-black/20 rounded-lg p-4 border border-gray-300 dark:border-gray-700/30">
           <h3 className="font-semibold text-white mb-2">Yarn</h3>
           <p className="font-mono text-sm text-gray-200">{runtimeVersions.yarn}</p>
         </div>
@@ -155,7 +155,7 @@ const EnvironmentAndVersioning = ({ data }) => {
 
       <div className="mt-8">
         <h3 className="font-semibold text-white mb-4">Dependencies</h3>
-        <ul className="bg-black/20 rounded-lg p-4 max-h-60 overflow-y-auto">
+        <ul className="bg-gray-100 dark:bg-black/20 rounded-lg p-4 max-h-60 overflow-y-auto border border-gray-300 dark:border-gray-700/30">
           {dependencies.length > 0 ? (
             dependencies.map((dep) => (
               <ListItem
@@ -175,7 +175,7 @@ const EnvironmentAndVersioning = ({ data }) => {
 
       <div className="mt-8">
         <h3 className="font-semibold text-white mb-4 flex items-center"><FiAlertTriangle className="mr-2 text-red-400"/>Security Vulnerabilities</h3>
-        <div className="bg-black/20 rounded-lg p-4">
+        <div className="bg-gray-100 dark:bg-black/20 rounded-lg p-4 border border-gray-300 dark:border-gray-700/30">
           {vulnerabilities.length > 0 ? (
             vulnerabilities.map((vuln, idx) => (
               <div key={`${vuln.cve}-${idx}`} className="text-sm border-b border-gray-700/50 py-2 last:border-b-0">
@@ -194,7 +194,7 @@ const EnvironmentAndVersioning = ({ data }) => {
         <ul className="space-y-2">
           {recommendedUpgrades.length > 0 ? (
             recommendedUpgrades.map((up) => (
-              <li key={up.package} className="text-sm text-gray-300 bg-gray-700/30 p-3 rounded-lg">
+              <li key={up.package} className="text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/30 p-3 rounded-lg">
                 Upgrade <span className="font-semibold text-white">{up.package}</span> from <span className="text-yellow-400">{up.from}</span> to <span className="text-green-400">{up.to}</span>
               </li>
             ))

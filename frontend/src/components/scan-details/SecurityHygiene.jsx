@@ -16,12 +16,12 @@ const severityWeight = (sev = 'Low') => (sev === 'High' ? 3 : sev === 'Medium' ?
 const SnippetBlock = ({ title, code }) => {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="mt-3 bg-black/50 rounded-lg border border-gray-700">
+    <div className="mt-3 bg-gray-100 dark:bg-black/50 rounded-lg border border-gray-300 dark:border-gray-700">
       <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-400">
         <span className="flex items-center"><FiCode className="mr-2" />{title}</span>
         <button
           onClick={async () => { try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (_) {} }}
-          className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-white text-xs"
+          className="px-2 py-1 rounded text-xs bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
         >
           {copied ? 'Copied' : (<span className="flex items-center"><FiCopy className="mr-1" />Copy</span>)}
         </button>

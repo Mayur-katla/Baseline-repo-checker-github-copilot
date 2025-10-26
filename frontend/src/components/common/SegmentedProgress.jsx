@@ -42,7 +42,7 @@ function SegmentedProgress({
       <div className="grid grid-cols-4 gap-3" role="list" aria-describedby="pipeline-status">
         {steps.map((label, idx) => {
           const state = isComplete ? 'completed' : (idx < activeIndex ? 'completed' : (idx === activeIndex ? 'active' : 'pending'));
-          const bg = state === 'completed' ? 'bg-green-600/20 border-green-500/50' : state === 'active' ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-gray-700/40 border-gray-600/50';
+          const bg = state === 'completed' ? 'bg-green-600/20 border-green-500/50' : state === 'active' ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-gray-100 dark:bg-gray-700/40 border-gray-300 dark:border-gray-600/50';
           const text = state === 'completed' ? 'text-green-300' : state === 'active' ? 'text-indigo-300' : 'text-gray-300';
           const shadow = state === 'active' ? 'shadow-[0_0_16px_rgba(99,102,241,0.35)]' : '';
           return (
@@ -57,7 +57,7 @@ function SegmentedProgress({
                 <span className={`text-xs font-semibold ${text}`}>{label}</span>
                 {state === 'completed' && <FiCheckCircle className="text-green-400" />}
               </div>
-              <div className="mt-2 h-2 bg-black/20 rounded overflow-hidden">
+              <div className="mt-2 h-2 bg-gray-200 dark:bg-black/20 rounded overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: state === 'completed' ? '100%' : state === 'active' ? '60%' : '0%' }}

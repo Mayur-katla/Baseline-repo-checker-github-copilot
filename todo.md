@@ -186,7 +186,7 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 - ✅ **COMPLETED** - Remove Settings page theme toggle and sync with navbar
 - ✅ **COMPLETED** - Unify Home page styles to support both themes
 - ✅ **COMPLETED** - Validate WCAG contrast for headings, body, borders across themes
-- 🔄 **IN PROGRESS** - Audit components for hard-coded dark backgrounds and fix
+- ✅ **COMPLETED** - Audit components for hard-coded dark backgrounds and fix
 - ✅ **COMPLETED** - Update ExportOptions, VulnerabilityList, and AnalyticsChart for theme variants
 
 
