@@ -14,11 +14,11 @@ const FeatureCard = ({ icon, title, description, delay }) => (
     initial={{ opacity: 0, y: 50 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.5, delay }}
-    className="bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 border border-gray-700/50 shadow-lg hover:shadow-2xl transition-all duration-300 h-full"
+    className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 border border-gray-200 dark:border-gray-700/50 shadow-lg hover:shadow-2xl transition-all duration-300 h-full"
   >
-    <div className="text-4xl text-indigo-400 mb-4">{icon}</div>
-    <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-    <p className="text-gray-300">{description}</p>
+    <div className="text-4xl text-indigo-600 dark:text-indigo-400 mb-4">{icon}</div>
+    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{title}</h3>
+    <p className="text-gray-700 dark:text-gray-300">{description}</p>
   </motion.div>
 );
 
@@ -37,9 +37,12 @@ function HomePage() {
     const onProgress = (data) => {
       queryClient.setQueryData(['scans'], (oldData) => {
         if (!oldData) return oldData; // do not override while loading
-        return oldData.map(scan =>
-          scan.id === data.id ? { ...scan, progress: data.progress, status: 'processing' } : scan
-        );
+        return oldData.map(scan => scan.id === data.id ? ({
+          ...scan,
+          progress: data.progress,
+          // keep status stable; mark done only when progress >= 100 or step indicates completion
+          status: (Number(data.progress) >= 100 || String(data.step || '').toLowerCase().includes('done')) ? 'done' : (scan.status === 'failed' ? 'failed' : 'processing')
+        }) : scan);
       });
     };
     const onDone = (data) => {
@@ -113,7 +116,7 @@ function HomePage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-white p-8">
       <div className="max-w-7xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: -50 }}
@@ -124,7 +127,7 @@ function HomePage() {
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-500">
             Baseline Autopilot
           </h1>
-          <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">
+          <p className="text-xl md:text-2xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto">
             AI-powered toolkit to analyze and modernize your legacy web projects, effortlessly.
           </p>
           <motion.button
@@ -167,7 +170,7 @@ function HomePage() {
           ) : scansQuery.error ? (
             <p className="text-center text-red-400">{scansQuery.error?.message || 'Failed to load recent scans.'}</p>
           ) : (
-            <div className="bg-gray-800/50 rounded-2xl p-8 border border-gray-700/50">
+            <div className="bg-white/70 dark:bg-gray-800/50 rounded-2xl p-8 border border-gray-200 dark:border-gray-700/50">
               <HistoryList 
                 scans={scansQuery.data || []} 
                 onViewDetails={(id) => navigate(`/scan/${id}`)} 

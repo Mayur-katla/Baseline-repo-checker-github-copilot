@@ -73,7 +73,7 @@ const ScanSchema = new mongoose.Schema({
     default: {},
   },
   securityAndPerformance: {
-    type: Object,
+    type: mongoose.Schema.Types.Mixed,
     default: {},
   },
   healthAndMaintenance: {

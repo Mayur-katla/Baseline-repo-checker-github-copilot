@@ -152,19 +152,19 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
   };
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8">
-      <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
+    <div className="bg-white/70 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 mt-8">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
         <FiShield className="mr-3 text-indigo-400" />
         Security Hygiene
       </h2>
 
       <div className="mb-4 flex gap-2 items-center">
-        <span className="text-xs text-gray-400 mr-2">Severity Filters:</span>
+        <span className="text-xs text-gray-600 dark:text-gray-400 mr-2">Severity Filters:</span>
         {['High', 'Medium', 'Low'].map((sev) => (
           <button
             key={sev}
             onClick={() => toggleSeverity(sev)}
-            className={`text-xs px-2 py-1 rounded border ${filter[sev] ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-900 text-gray-400 border-gray-700'}`}
+            className={`text-xs px-2 py-1 rounded border ${filter[sev] ? 'bg-gray-200 text-gray-900 border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600' : 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700'}`}
           >
             {sev} ({severityCounts[sev] || 0})
           </button>
@@ -172,7 +172,7 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
       </div>
 
       {Object.keys(groupedByFile).length === 0 && recommendations.length === 0 ? (
-        <p className="text-sm text-gray-400">No security hygiene issues detected.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">No security hygiene issues detected.</p>
       ) : (
         <div className="space-y-4">
           {Object.entries(groupedByFile).map(([file, items]) => {
@@ -181,13 +181,13 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
             const headerColor = severityColor(maxSeverity);
             const isOpen = !!openGroups[file];
             return (
-              <div key={file} className={`rounded-xl border ${headerColor} bg-gray-900/40`}>
+              <div key={file} className={`rounded-xl border ${headerColor} dark:bg-gray-900/40`}>
                 <button onClick={() => toggleGroup(file)} className="w-full flex items-center justify-between p-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-semibold">{file}</span>
+                    <span className="text-gray-900 dark:text-white font-semibold">{file}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
-                    <span className="text-gray-300">{count} issues</span>
+                    <span className="text-gray-700 dark:text-gray-300">{count} issues</span>
                     <SeverityBadge severity={maxSeverity} />
                   </div>
                 </button>
@@ -201,15 +201,15 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
                       const isApplied = !!appliedMap[issueKey];
                       const globalIdx = filteredIssues.indexOf(i);
                       return (
-                        <div key={expandedKey} className={`p-3 rounded-lg border ${severityColor(i.severity)} bg-gray-900/60 ${isApplied ? 'opacity-70' : ''}`}>
+                        <div key={expandedKey} className={`p-3 rounded-lg border ${severityColor(i.severity)} dark:bg-gray-900/60 ${isApplied ? 'opacity-70' : ''}`}>
                           <div className="flex items-start justify-between">
                             <div>
                               <div className="flex items-center gap-2">
                                 <SeverityBadge severity={i.severity || 'Low'} dataTestId="severity-badge" />
-                                <span className="text-white font-semibold">{i.title}</span>
+                                <span className="text-gray-900 dark:text-white font-semibold">{i.title}</span>
                               </div>
-                              <p className="text-sm text-gray-400 mt-1">{i.description}</p>
-                              <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{i.description}</p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                                 <label className="inline-flex items-center gap-2">
                                   <input
                                     type="checkbox"
@@ -217,7 +217,7 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
                                     checked={isApplied}
                                     onChange={() => toggleApplied(issueKey)}
                                   />
-                                  <span className="flex items-center gap-1">Applied?<FiCheckCircle className="text-green-400" /></span>
+                                  <span className="flex items-center gap-1">Applied?<FiCheckCircle className="text-green-600 dark:text-green-400" /></span>
                                 </label>
                               </div>
                             </div>
@@ -237,13 +237,22 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
                                   className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
                                   disabled={applyStatusMap[issueKey] === 'loading'}
                                 >
-                                  {applyStatusMap[issueKey] === 'loading' ? 'Applying…' : 'Apply in server'}
+                                  Apply
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const text = `${fix.label}\n\n${fix.code}`;
+                                    navigator.clipboard.writeText(text);
+                                  }}
+                                  className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-sm"
+                                >
+                                  <FiCopy /> Copy
                                 </button>
                                 {applyStatusMap[issueKey] === 'success' ? (
-                                  <span className="text-xs text-green-400">Apply job queued</span>
+                                  <span className="text-xs text-green-600 dark:text-green-400">Apply job queued</span>
                                 ) : null}
                                 {applyStatusMap[issueKey] === 'error' ? (
-                                  <span className="text-xs text-red-400">{applyErrorMap[issueKey] || 'Apply failed'}</span>
+                                  <span className="text-xs text-red-600 dark:text-red-400">{applyErrorMap[issueKey] || 'Apply failed'}</span>
                                 ) : null}
                               </div>
                             </>
@@ -256,23 +265,19 @@ function SecurityHygiene({ data = {}, recommendations = [], scanId }) {
               </div>
             );
           })}
-
-          {recommendations.length > 0 ? (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-white mb-2">Recommendations</h3>
-              <ul className="list-disc list-inside text-sm text-gray-300">
-                {recommendations.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
         </div>
       )}
 
-      <div className="mt-4 text-xs text-gray-500">
-        <span className="inline-flex items-center gap-2"><FiCheckCircle className="text-green-400" />Apply fixes and re-run scans to validate improvements.</span>
-      </div>
+      {recommendations.length > 0 ? (
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold text-white mb-2">Recommendations</h3>
+          <ul className="list-disc list-inside text-sm text-gray-300">
+            {recommendations.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

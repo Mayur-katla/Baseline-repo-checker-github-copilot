@@ -9,6 +9,7 @@ import Header from './components/common/Header.jsx';
 import { ToastHost } from './hooks/useToast.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './App.css';
+import ComparePage from './pages/ComparePage.tsx';
 
 const AppContent = () => {
   const location = useLocation();
@@ -23,6 +24,7 @@ const AppContent = () => {
           <Route path="/scan/:scanId" element={<ScanDetailPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/docs" element={<Docs />} />
+          <Route path="/compare" element={<ComparePage />} />
         </Routes>
       </main>
     </div>

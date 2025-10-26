@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baseline-frontend
+  labels:
+    app: baseline-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baseline-frontend
+  template:
+    metadata:
+      labels:
+        app: baseline-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: baseline-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5173
+          env:
+            - name: VITE_API_URL
+              value: "http://baseline-backend:3001/api"
+          # Note: dev server; for production, switch to a static build + nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: baseline-frontend
+  labels:
+    app: baseline-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: baseline-frontend
+  ports:
+    - name: http
+      port: 5173
+      targetPort: 5173

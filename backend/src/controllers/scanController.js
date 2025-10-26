@@ -1,5 +1,6 @@
 const queue = require('../jobs/queue');
 const Scan = require('../models/Scan');
+const { getRedis } = require('../utils/redisClient');
 
 const createScan = async (req, res) => {
   try {
@@ -21,6 +22,16 @@ const createScan = async (req, res) => {
 
 const getScanStatus = async (req, res) => {
   const { id } = req.params;
+  const redis = getRedis?.() || null;
+  const cacheKey = `scan:status:${id}`;
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
+    } catch (_) {}
+  }
 
   try {
     const job = await queue.getJob(id);
@@ -34,7 +45,9 @@ const getScanStatus = async (req, res) => {
         const elapsed = Date.now() - createdAt;
         etaMs = Math.round(elapsed * ((100 - progress) / progress));
       }
-      res.json({ scanId: job.id, status: job.status, progress: job.progress });
+      const payload = { scanId: job.id, status: job.status, progress: job.progress };
+      if (redis) { try { await redis.setex(cacheKey, 30, JSON.stringify(payload)); } catch (_) {} }
+      return res.json(payload);
     } else {
       res.status(404).json({ error: 'Scan not found' });
     }
@@ -46,11 +59,23 @@ const getScanStatus = async (req, res) => {
 
 const getScanResult = async (req, res) => {
   const { id } = req.params;
+  const redis = getRedis?.() || null;
+  const cacheKey = `scan:result:${id}`;
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.json(JSON.parse(cached));
+      }
+    } catch (_) {}
+  }
 
   try {
     const job = await queue.getJob(id);
     if (job && (job.status === 'done' || job.status === 'completed')) {
-      res.json({ scanId: job.id, status: job.status, result: job.result });
+      const payload = { scanId: job.id, status: job.status, result: job.result };
+      if (redis) { try { await redis.setex(cacheKey, 600, JSON.stringify(payload)); } catch (_) {} }
+      return res.json(payload);
     } else if (job) {
       res.status(202).json({ scanId: job.id, status: job.status, message: 'Scan is not yet complete.' });
     } else {

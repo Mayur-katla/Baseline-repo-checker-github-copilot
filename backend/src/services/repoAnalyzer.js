@@ -185,43 +185,60 @@ async function cloneRepo(repoUrl, options = {}) {
           await new Promise(r => setTimeout(r, delay));
         }
       }
+      // Fallback: retry once without partial clone filter for broader compatibility
+      if (lastErr) {
+        try {
+          const cloneArgsNoFilter = ['--depth', '1'];
+          if (requested && !isSha) {
+            cloneArgsNoFilter.push('--branch', requested, '--single-branch');
+          }
+          await git.clone(repoUrl, tmp, cloneArgsNoFilter);
+          lastErr = null;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+    }
 
       // Fallback to GitHub zipball archive for private/repos when clone fails
       if (lastErr) {
         try {
           const m = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)(?:\.git|$)/i);
           const token = process.env.GITHUB_TOKEN;
-          if (m && token && fetch) {
+          if (m && fetch) {
             const owner = m[1];
             const repoName = m[2];
             const refOrDefault = requested || '';
-            const zipUrl = refOrDefault
-              ? `https://api.github.com/repos/${owner}/${repoName}/zipball/${encodeURIComponent(refOrDefault)}`
-              : `https://api.github.com/repos/${owner}/${repoName}/zipball`;
-            const resp = await fetch(zipUrl, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'User-Agent': 'Baseline-Repo-Scanner',
-                Accept: 'application/zip'
+            const headers = { 'User-Agent': 'Baseline-Repo-Scanner' };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            let archiveUrl;
+            if (refOrDefault) {
+              archiveUrl = `https://codeload.github.com/${owner}/${repoName}/zip/${encodeURIComponent(refOrDefault)}`;
+            } else {
+              const metaResp = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, { headers });
+              let branch = 'main';
+              if (metaResp.ok) {
+                try {
+                  const meta = await metaResp.json();
+                  if (meta && meta.default_branch) branch = meta.default_branch;
+                } catch (_) {}
               }
-            });
+              archiveUrl = `https://codeload.github.com/${owner}/${repoName}/zip/${encodeURIComponent(branch)}`;
+            }
+            const resp = await fetch(archiveUrl, { headers });
             if (!resp.ok) {
-              throw new Error(`GitHub zipball fetch failed: ${resp.status} ${resp.statusText}`);
+              throw new Error(`GitHub codeload fetch failed: ${resp.status} ${resp.statusText}`);
             }
             const buf = typeof resp.buffer === 'function' ? await resp.buffer() : Buffer.from(await resp.arrayBuffer());
             const unzipPath = await unzipBuffer(buf);
             console.log(`Zipball fallback extracted to: ${unzipPath}`);
-            try { await rimraf(tmp); } catch (_) {}
+            try { await rimraf.rimraf(tmp); } catch (_) {}
             return unzipPath;
           }
-        } catch (zipErr) {
-          console.error('Zipball fallback failed', zipErr);
-        }
-        // No fallback succeeded; throw original clone error
-        throw lastErr;
+      } catch (zipErr) {
+        console.error('Zipball fallback failed', zipErr);
       }
-    }
-
+      }
     const repo = simpleGit({ baseDir: tmp });
 
     // Handle submodules (init/update with shallow depth)
@@ -259,7 +276,7 @@ async function cloneRepo(repoUrl, options = {}) {
     return tmp;
   } catch (err) {
     console.error(`Error cloning repository: ${repoUrl}`, err);
-    await rimraf(tmp);
+    await rimraf.rimraf(tmp);
     throw err;
   }
 }
@@ -481,3 +498,4 @@ module.exports = {
   getCommitMetadata,
   getChangedPaths,
 };
+

@@ -8,6 +8,7 @@ const baseline = require('../services/baseline');
 const JobModel = require('../models/Job');
 const ScanModel = require('../models/Scan');
 const { generateAiSuggestions } = require('../services/llmSuggestions');
+const { runDetectors } = require('../services/pluginRegistry');
 
 // Unified feature/environment/architecture detection builder
 async function buildDetected(root, files, repoUrl) {
@@ -255,7 +256,8 @@ async function buildDetected(root, files, repoUrl) {
     });
   } catch (_) {}
 
-  return {
+  // Build result object and run plugin detectors
+  let result = {
     features,
     repoDetails,
     environment: env,
@@ -269,6 +271,14 @@ async function buildDetected(root, files, repoUrl) {
     exportOptions,
     aiSuggestions,
   };
+
+  try {
+    result = await runDetectors({ root, files, repoUrl, result });
+  } catch (e) {
+    try { summaryLog.push({ ts: Date.now(), msg: `[plugin] error: ${e?.message || e}` }); } catch {}
+  }
+
+  return result;
 }
 
 class JobQueue extends EventEmitter {
@@ -483,7 +493,8 @@ class JobQueue extends EventEmitter {
             const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
             const mergedExcludes = Array.from(new Set([...(excludePaths || []), ...userExclEnv]));
             let files = [];
-            // ... existing code ...
+            files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+            const walkMs = Date.now() - walkStart;
             // Analyze loop with cancellation checks
             let filesAnalyzed = 0;
             const totalFiles = files.length;
@@ -500,6 +511,14 @@ class JobQueue extends EventEmitter {
             ensureNotCancelled();
             const detected = await buildDetected(workspaceRoot, files, job.payload.repoUrl || '');
             const meta = await repoAnalyzer.getCommitMetadata(workspaceRoot);
+            const hasGitRepo = fs.existsSync(path.join(workspaceRoot, '.git'));
+            let baseRef = null;
+            let compareRef = null;
+            if (hasGitRepo) {
+              compareRef = job.payload.ref || 'HEAD';
+              baseRef = job.payload.baseRef || job.payload.branch || meta.defaultBranch || 'HEAD';
+            }
+            const changedPaths = await repoAnalyzer.getChangedPaths(workspaceRoot, baseRef, compareRef);
             detected.versionControl = {
               ...(detected.versionControl || {}),
               branch: job.payload.branch || null,

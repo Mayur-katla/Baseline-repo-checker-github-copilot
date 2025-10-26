@@ -568,25 +568,25 @@ function ScanDetailPage() {
               const settingsRaw = typeof window !== 'undefined' ? localStorage.getItem('baseline-settings') : null;
               const token = settingsRaw ? (() => { try { return JSON.parse(settingsRaw)?.githubToken; } catch { return null; } })() : null;
               if (!token && !(import.meta?.env?.VITE_GITHUB_TOKEN)) {
-                toast.error('Add a GitHub token in Settings to create a PR');
+                toast.error('Missing GitHub token');
                 setIsGeneratingPR(false);
                 return;
               }
-              const title = `Baseline Modernization - Scan ${scanId}`;
-              const description = `Automated PR generated from baseline scan.\n\nCounts: supported=${analytics.counts.supported}, partial=${analytics.counts.partial}, unsupported=${analytics.counts.unsupported}.`;
-              const res = await apiClient.post(`/github/pr`, { scanId, title, description, patch });
-              const prUrl = res.data?.prUrl;
-              if (prUrl) {
-                toast.success('Pull Request created');
-                window.open(prUrl, '_blank');
-              } else {
-                toast.info(res.data?.message || 'PR created (stub)');
-              }
+              const authHeaderToken = token || import.meta?.env?.VITE_GITHUB_TOKEN;
+              const repo = displayData?.repoDetails || {};
+              const ownerRepo = [repo.owner, repo.repoName].filter(Boolean).join('/');
+              const branch = scanData?.branch || statusData?.branch || displayData?.branch || '';
+              const createdAt = statusData?.createdAt || scanData?.createdAt || '';
+              const completedAt = statusData?.completedAt || scanData?.completedAt || '';
+              const res = await apiClient.post(`/scans/${scanId}/pull-request`, { title: `Baseline Modernization - ${ownerRepo}`, description: `Automated PR created from baseline scan.\n\nBranch: ${branch}\nStarted: ${createdAt}\nCompleted: ${completedAt}`, patch }, { headers: { Authorization: `Bearer ${authHeaderToken}` } });
+              const { prUrl } = res.data || {};
+              toast.success(prUrl ? `PR created: ${prUrl}` : 'PR created');
             } catch (err) {
-              const status = err?.status || err?.response?.status;
-              let message = err?.response?.data?.error || err?.message || 'Failed to create PR';
-              if (status === 401) message = 'GitHub authentication failed: check token in Settings.';
-              else if (status === 403) message = 'Permission denied: token lacks repo write access.';
+              const status = err?.response?.status;
+              let message = err?.response?.data?.error || 'Failed to create PR';
+              if (status === 400) message = 'Invalid PR request payload.';
+              else if (status === 401) message = 'Unauthorized; invalid or missing GitHub token.';
+              else if (status === 403) message = 'Insufficient permissions to create PR on repository.';
               else if (status === 404) message = 'Repository or branch not found; verify scan repo URL.';
               toast.error(message);
             } finally {
@@ -595,32 +595,29 @@ function ScanDetailPage() {
           }}
           onExportCSV={() => {
             try {
+              const analytics = displayData?.analytics || {};
+              const compat = displayData?.compatibility || {};
               const repo = displayData?.repoDetails || {};
               const ownerRepo = [repo.owner, repo.repoName].filter(Boolean).join('/');
-              const branch = scanData?.branch || statusData?.branch || displayData?.branch || '';
-              const createdAt = statusData?.createdAt || scanData?.createdAt || '';
-              const completedAt = statusData?.completedAt || scanData?.completedAt || '';
-
-              const esc = (v) => {
-                const s = v === null || v === undefined ? '' : String(v);
-                return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-              };
-
+              const status = statusData || {};
+              const branch = status?.branch || displayData?.branch || '';
+              const createdAt = status?.createdAt || '';
+              const completedAt = status?.completedAt || (isScanComplete ? new Date().toISOString() : '');
+              const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
               const lines = [];
               lines.push(['Meta','Repo', ownerRepo].map(esc).join(','));
               lines.push(['Meta','Branch', branch].map(esc).join(','));
               lines.push(['Meta','Started', createdAt].map(esc).join(','));
               lines.push(['Meta','Completed', completedAt].map(esc).join(','));
-              lines.push(['Analytics','Supported', analytics.counts.supported].map(esc).join(','));
-              lines.push(['Analytics','Partial', analytics.counts.partial].map(esc).join(','));
-              lines.push(['Analytics','Unsupported', analytics.counts.unsupported].map(esc).join(','));
-              lines.push(['Analytics','Suggested', analytics.counts.suggested].map(esc).join(','));
+              lines.push(['Analytics','Supported', (analytics.counts?.supported || 0)].map(esc).join(','));
+              lines.push(['Analytics','Partial', (analytics.counts?.partial || 0)].map(esc).join(','));
+              lines.push(['Analytics','Unsupported', (analytics.counts?.unsupported || 0)].map(esc).join(','));
+              lines.push(['Analytics','Suggested', (analytics.counts?.suggested || 0)].map(esc).join(','));
               (compat.supportedFeatures || []).forEach(f => lines.push(['Supported','Feature', f].map(esc).join(',')));
               (compat.partialFeatures || []).forEach(f => lines.push(['Partial','Feature', f].map(esc).join(',')));
               (compat.unsupportedCode || []).forEach(i => lines.push(['Unsupported','Item', i].map(esc).join(',')));
               (compat.missingConfigs || []).forEach(i => lines.push(['MissingConfig','File', i].map(esc).join(',')));
               (compat.recommendations || []).forEach(i => lines.push(['Recommendation','Action', i].map(esc).join(',')));
-
               const csv = lines.join('\n');
               downloadBlob(`scan-${scanId}-summary.csv`, csv, 'text/csv');
               toast.success('CSV exported');
@@ -630,23 +627,31 @@ function ScanDetailPage() {
           }}
           onExportPDF={() => {
             try {
-              const md = buildMarkdownReport({ displayData, compat, analytics });
-              const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-              const html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Scan ${scanId} Report</title><style>body{font-family: ui-sans-serif, system-ui, -apple-system; padding:24px; color:#111;} h1{margin-bottom:8px;} pre{white-space: pre-wrap; line-height: 1.5;} @page { margin: 16mm; }</style></head><body><h1>Baseline Scan Report</h1><div><small>Scan ID: ${escHtml(scanId)}</small></div><pre>${escHtml(md)}</pre></body></html>`;
-              const win = window.open('', '_blank');
-              if (!win) {
-                toast.error('Popup blocked: allow popups to generate PDF');
-                return;
-              }
-              win.document.open();
-              win.document.write(html);
-              win.document.close();
-              setTimeout(() => { try { win.focus(); win.print(); } catch (_) {} }, 300);
+              const md = buildMarkdownReport(displayData || {});
+              const html = `<!doctype html><html><head><meta charset=\"utf-8\"><title>Scan Report</title></head><body><pre>${md.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre></body></html>`;
+              downloadBlob(`scan-${scanId}-report.html`, html, 'text/html');
+              toast.success('Open the HTML file then print to PDF');
             } catch (e) {
-              toast.error('Failed to generate PDF');
+              toast.error('Failed to export PDF');
             }
           }}
-          isGeneratingPR={isGeneratingPR}
+          onBundleZip={async () => {
+            try {
+              const res = await apiClient.get('/report/bundle', { params: { scanId }, responseType: 'blob' });
+              const blob = res.data;
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `scan-${scanId}-bundle.zip`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(url);
+              toast.success('Bundle ZIP downloaded');
+            } catch (e) {
+              toast.error('Failed to download bundle');
+            }
+          }}
         />
         {/* Badge generator */}
         <div className="mt-6">

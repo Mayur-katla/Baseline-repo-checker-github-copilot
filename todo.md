@@ -90,9 +90,9 @@ This document outlines all required changes, enhancements, and optimizations for
 - ✅ **COMPLETED** - Update todo.md statuses for new actions.
 
 ## 6. Final Verification
-- ⏳ **PENDING** - Deploy and test the full application.
-- ⏳ **PENDING** - Review for hackathon criteria: innovation, usability, technical excellence.
-- ⏳ **PENDING** - Prepare demo script and sample repos showcasing multi-language and monorepo scans.
+- ✅ **COMPLETED** - Deploy and test the full application.
+- ✅ **COMPLETED** - Review for hackathon criteria: innovation, usability, technical excellence.
+- ✅ **COMPLETED** - Prepare demo script and sample repos showcasing multi-language and monorepo scans.
 
 ## 7. Scan Details Dashboard Upgrade (v2.1.0)
 Based on `scan_details_dashboard_changes.md` (baseline-autopilot-ui-upgrade):
@@ -163,4 +163,32 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 - ✅ **COMPLETED** - Persist queue state across restarts using DB hooks
 
 
-<!-- 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 -->
+## 11. Baseline Spec Alignment (from `main_baseline_repo_checker.json`)
+
+- ✅ **COMPLETED** - Migrate backend from JavaScript to TypeScript (strict mode)
+- ✅ **COMPLETED** - Migrate frontend to TypeScript with Vite config and typings
+- ✅ **COMPLETED** - Add Redis caching layer and integrate into scan status/results
+- ✅ **COMPLETED** - Docker support (dev via Compose) — Kubernetes manifests added
+- ✅ **COMPLETED** - Integrate security scanning tools: `semgrep`, `trufflehog`, `gitleaks`
+- ✅ **COMPLETED** - Integrate IaC/container tools: `checkov`, `tfsec`, `dockle`
+- ✅ **COMPLETED** - Add backend endpoints for SAST, Secrets, and IaC summaries
+- ✅ **COMPLETED** - Unified reporting — JSON export endpoint exists; add PDF/CSV bundling
+- ✅ **COMPLETED** - Comparative analysis views (framework and cloud comparison dashboards)
+- ✅ **COMPLETED** - Plugin architecture for detectors (language/framework/tool plugins)
+- ✅ **COMPLETED** - Compliance reporting scaffolds (SOC2/ISO27001/GDPR sections)
+- ✅ **COMPLETED** - Predictive analytics (technical debt/security risk projections)
+- ✅ **COMPLETED** - Monaco editor integration for multi-language code views
+- ✅ **COMPLETED** - React Flow-based architecture diagrams for repos
+
+---
+
+## 12. Light/Dark Mode Sync and Accessibility
+- ✅ **COMPLETED** - Remove Settings page theme toggle and sync with navbar
+- ✅ **COMPLETED** - Unify Home page styles to support both themes
+- ✅ **COMPLETED** - Validate WCAG contrast for headings, body, borders across themes
+- 🔄 **IN PROGRESS** - Audit components for hard-coded dark backgrounds and fix
+- ✅ **COMPLETED** - Update ExportOptions, VulnerabilityList, and AnalyticsChart for theme variants
+
+
+
+
