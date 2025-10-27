@@ -211,3 +211,25 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 - 🔄 **IN PROGRESS** - Complete frontend TypeScript migration (convert `.jsx` pages to `.tsx`) — Priority: Medium — Target: 2025-11-05.
 - 🔄 **IN PROGRESS** - Begin backend TypeScript migration (controllers/routes/services) — Priority: Medium — Target: 2025-11-10.
 
+## 15. Hackathon Submission (Octopus Hackathon)
+
+- ⏳ **PENDING** - Create Devpost project page with problem, solution, impact, tech stack, repo link — Priority: High — Due: 2025-10-31.
+- ⏳ **PENDING** - Record 3-minute pitch video (script, capture, edit) and upload — Priority: High — Due: 2025-10-31.
+- ⏳ **PENDING** - Produce 6–8 polished screenshots (Settings token, Preflight, Scan Dashboard, PR creation, GitHub PR) — Priority: High — Due: 2025-10-30.
+- ⏳ **PENDING** - Prepare end-to-end demo script and backup recording of PR flow — Priority: High — Due: 2025-10-30.
+- ⏳ **PENDING** - Finalize README quickstart and setup aligning with `.env.example` — Priority: High — Due: 2025-10-29.
+- ⏳ **PENDING** - Tailor narrative for AI/ML and Cybersecurity categories (select best fit) — Priority: Medium — Due: 2025-10-29.
+
+## 16. PR Automation Enhancements (v2.3.1)
+
+- ⏳ **PENDING** - Return structured PR errors with `code`, `message`, `details` for 400/401/403/404/500 — Priority: Medium — Target: 2025-11-03.
+- ⏳ **PENDING** - Harden `parseUnifiedDiff`: support renames/additions/deletions, guard binary, idempotent commits — Priority: Medium — Target: 2025-11-04.
+- ⏳ **PENDING** - Preflight fork fallback if branch protection blocks pushes to upstream — Priority: Medium — Target: 2025-11-05.
+- ⏳ **PENDING** - Add dry-run mode to validate patch application without committing — Priority: Medium — Target: 2025-11-04.
+
+## 17. Auto‑Remediation & Risk Scoring
+
+- ⏳ **PENDING** - Generate safe auto‑remediation patches from detector findings (deps bumps, CI hardening) — Priority: Medium — Target: 2025-11-10.
+- ⏳ **PENDING** - Compute “Modernization Risk Score” and include in PR description — Priority: Medium — Target: 2025-11-07.
+- ⏳ **PENDING** - Security gating: block PR or require acknowledgment on high‑risk findings — Priority: Medium — Target: 2025-11-08.
+
