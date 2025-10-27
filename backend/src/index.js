@@ -205,15 +205,27 @@ app.post(
       const prNumber = Math.floor(100 + Math.random() * 900);
       const branchName = `baseline-modernization-${id}`;
 
+      // Detect bearer token presence from Authorization header
+      const authHeader = req.headers['authorization'] || '';
+      const tokenDetected = /^Bearer\s+\S+/.test(authHeader);
+      const appliedPatchBytes = (req.body?.patch ? Buffer.byteLength(String(req.body.patch), 'utf8') : 0);
+
       // In a real implementation, we'd push a branch and call GitHub API here
       const prUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`;
 
       res.status(201).json({
         id,
+        owner,
+        repo,
         branch: branchName,
         prUrl,
+        tokenDetected,
+        appliedPatchBytes,
         provider: 'github',
-        message: 'PR creation is stubbed for demo; no remote changes were made.'
+        mode: 'stub',
+        message: tokenDetected
+          ? 'Demo mode: token detected, but PR creation is stubbed; no remote changes were made.'
+          : 'Demo mode: no token detected; PR creation is stubbed and no remote changes were made.'
       });
     } catch (error) {
       console.error(`Error creating pull request for scan ${req.params.id}:`, error);

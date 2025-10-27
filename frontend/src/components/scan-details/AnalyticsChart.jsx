@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { hasNonZeroCounts } from '../../utils/visibility.js';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -50,6 +51,15 @@ function AnalyticsChart({ analytics }) {
   const counts = analytics?.counts || { supported: 0, partial: 0, unsupported: 0, suggested: 0 };
   const { supportedFeatures, partialFeatures, unsupportedCode, recommendations } = analytics || {};
 
+  // Hide entire chart when no valid data points to display
+  if (!hasNonZeroCounts(counts) &&
+      (!Array.isArray(supportedFeatures) || supportedFeatures.length === 0) &&
+      (!Array.isArray(partialFeatures) || partialFeatures.length === 0) &&
+      (!Array.isArray(unsupportedCode) || unsupportedCode.length === 0) &&
+      (!Array.isArray(recommendations) || recommendations.length === 0)) {
+    return null;
+  }
+
   const doughnutData = useMemo(() => ({
     labels: ['Supported', 'Partial', 'Unsupported', 'Suggested'],
     datasets: [
@@ -88,7 +98,7 @@ function AnalyticsChart({ analytics }) {
   }), []);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start transition-all duration-300">
       <div className="bg-white/80 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700/50">
         <h3 className="text-gray-900 dark:text-white font-semibold mb-4 text-center">Compatibility Breakdown</h3>
         <div className="h-64 relative">

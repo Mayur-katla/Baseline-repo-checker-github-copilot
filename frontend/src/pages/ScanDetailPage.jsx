@@ -30,6 +30,8 @@ import ImpactHeatmap from '../components/scan-details/ImpactHeatmap.jsx';
 import BadgeGenerator from '../components/scan-details/BadgeGenerator.jsx';
 import VulnerabilitySummary from '../components/scan-details/VulnerabilitySummary.jsx'
 import ImpactByBaseline from '../components/scan-details/ImpactByBaseline.jsx'
+import FilterNotice from '../components/scan-details/FilterNotice.jsx';
+import { countFilteredSections, shouldShowAnalytics, shouldShowCompatibility } from '../utils/visibility.js';
 
 const AnalyticsChart = lazy(() => import('../components/scan-details/AnalyticsChart.jsx'));
 const CompatibilityStackedBar = lazy(() => import('../components/scan-details/CompatibilityStackedBar.jsx'));
@@ -195,12 +197,13 @@ function ScanDetailPage() {
   // Result fetch (gated on completion)
   const { data: scanData, isLoading: resultLoading, error: resultError } = useQuery({
     queryKey: ['scanResult', scanId],
-    queryFn: ({ signal }) => apiClient.get(`/scans/${scanId}`, { signal }).then(r => r.data),
-    enabled: !!scanId && isScanComplete,
+    queryFn: ({ signal }) => apiClient.get(`/scans/${scanId}/result`, { signal }).then(r => r.data),
+    enabled: !!scanId && (isScanComplete || liveData?.status === 'done' || !!liveData?.result),
     staleTime: Infinity,
     onSuccess: (data) => {
-      if (data && data.repoUrl) {
-        fetch(data.repoUrl).then(res => { if (!res.ok) setIsRepoAccessible(false); }).catch(() => setIsRepoAccessible(false));
+      if ((data?.result || data)?.repoUrl) {
+        const repoUrl = (data?.result || data).repoUrl;
+        fetch(repoUrl).then(res => { if (!res.ok) setIsRepoAccessible(false); }).catch(() => setIsRepoAccessible(false));
       }
     }
   });
@@ -350,6 +353,10 @@ function ScanDetailPage() {
 
         {/* Charts */}
         <div ref={analyticsSectionRef} className="mb-8">
+          {(() => {
+            const hidden = (!shouldShowAnalytics(analytics) ? 1 : 0) + (!shouldShowCompatibility(compat) ? 1 : 0);
+            return <FilterNotice hiddenCount={hidden} />;
+          })()}
           <AnalyticsStatistics counts={analytics.counts} />
           <div className="mt-6">
             <Suspense fallback={<LoadingSpinner />}>
@@ -430,13 +437,21 @@ function ScanDetailPage() {
                         }
                         const title = `Baseline Modernization - Scan ${scanId}`;
                         const description = `Automated PR generated from baseline scan.\n\nCounts: supported=${analytics.counts.supported}, partial=${analytics.counts.partial}, unsupported=${analytics.counts.unsupported}.`;
-                        const res = await apiClient.post(`/github/pr`, { scanId, title, description, patch });
-                        const prUrl = res.data?.prUrl;
+                        const res = await apiClient.post(`/scans/${scanId}/pull-request`, { title, description, patch });
+                        const { prUrl, mode, message, tokenDetected } = res.data || {};
                         if (prUrl) {
                           toast.success('Pull Request created');
                           window.open(prUrl, '_blank');
                         } else {
-                          toast.info(res.data?.message || 'PR created (stub)');
+                          const msg = String(message || '').toLowerCase();
+                          if (mode === 'stub' || msg.includes('stub') || msg.includes('demo mode')) {
+                            toast.info('Demo mode: PR created locally. No remote changes.');
+                            if (!tokenDetected) {
+                              toast.info('Add a GitHub token in Settings to enable real PRs.');
+                            }
+                          } else {
+                            toast.info(message || 'PR created');
+                          }
                         }
                       } catch (err) {
                         const status = err?.status || err?.response?.status;
@@ -579,8 +594,20 @@ function ScanDetailPage() {
               const createdAt = statusData?.createdAt || scanData?.createdAt || '';
               const completedAt = statusData?.completedAt || scanData?.completedAt || '';
               const res = await apiClient.post(`/scans/${scanId}/pull-request`, { title: `Baseline Modernization - ${ownerRepo}`, description: `Automated PR created from baseline scan.\n\nBranch: ${branch}\nStarted: ${createdAt}\nCompleted: ${completedAt}`, patch }, { headers: { Authorization: `Bearer ${authHeaderToken}` } });
-              const { prUrl } = res.data || {};
-              toast.success(prUrl ? `PR created: ${prUrl}` : 'PR created');
+              const { prUrl, mode, message, tokenDetected } = res.data || {};
+              if (prUrl) {
+                toast.success(`PR created: ${prUrl}`);
+              } else {
+                const msg = String(message || '').toLowerCase();
+                if (mode === 'stub' || msg.includes('stub') || msg.includes('demo mode')) {
+                  toast.info('Demo mode: PR created locally. No remote changes.');
+                  if (!tokenDetected) {
+                    toast.info('Add a GitHub token in Settings to enable real PRs.');
+                  }
+                } else {
+                  toast.success('PR created');
+                }
+              }
             } catch (err) {
               const status = err?.response?.status;
               let message = err?.response?.data?.error || 'Failed to create PR';
@@ -706,3 +733,5 @@ function VirtualizedSuggestionList({ suggestions, selectedSuggestion, onSelect }
     </div>
   );
 }
+
+

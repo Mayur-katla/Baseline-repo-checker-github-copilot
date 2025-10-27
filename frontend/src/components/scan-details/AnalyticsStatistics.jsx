@@ -1,4 +1,5 @@
 import React from 'react';
+import { hasNonZeroCounts } from '../../utils/visibility.js';
 import { FiPieChart, FiBarChart2 } from 'react-icons/fi';
 
 const StatBar = ({ label, value, color, onClick, tooltip }) => (
@@ -23,6 +24,10 @@ const StatBar = ({ label, value, color, onClick, tooltip }) => (
 const AnalyticsStatistics = ({ counts }) => {
   const { supported = 0, partial = 0, unsupported = 0, suggested = 0 } = counts || {};
 
+  if (!hasNonZeroCounts({ supported, partial, unsupported, suggested })) {
+    return null;
+  }
+
   const scrollTo = (id) => {
     try {
       const el = document.getElementById(id);
@@ -34,7 +39,7 @@ const AnalyticsStatistics = ({ counts }) => {
   };
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8">
+    <div className="bg-gray-800/50 backdrop-blur-md rounded-2xl p-6 border border-gray-700/50 mt-8 transition-all duration-300">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
         <FiBarChart2 className="mr-3 text-indigo-400" />
         Analytics Statistics
