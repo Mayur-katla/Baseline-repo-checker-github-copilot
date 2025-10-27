@@ -8,7 +8,7 @@ const { connectDB } = require('./config/database');
 const Scan = require('./models/Scan');
 const queue = require('./jobs/queue');
 const uuid = require('uuid');
-// const { Octokit } = require('@octokit/rest');
+const { Octokit } = require('@octokit/rest');
 const app = express();
 const server = http.createServer(app);
 const scanRoutes = require('./routes/scans');
@@ -58,6 +58,181 @@ app.get('/api/browsers', (req, res) => {
     res.json({ browsers: BROWSERS });
   } catch (e) {
     res.status(500).json({ error: 'Failed to get browsers' });
+  }
+});
+
+// GitHub token preflight: validate token and return user info
+app.get('/api/github/me', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'] || '';
+    const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+    if (!token) {
+      return res.status(401).json({ authenticated: false, error: 'Missing GitHub token' });
+    }
+    const octokit = new Octokit({ auth: token });
+    const resp = await octokit.rest.users.getAuthenticated();
+    const scopesHeader = (resp && resp.headers && (resp.headers['x-oauth-scopes'] || resp.headers['X-OAuth-Scopes'])) || '';
+    const scopes = String(scopesHeader || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    return res.json({
+      authenticated: true,
+      user: {
+        login: resp?.data?.login || '',
+        name: resp?.data?.name || '',
+        id: resp?.data?.id || '',
+      },
+      scopes,
+    });
+  } catch (e) {
+    const status = e?.status === 401 ? 401 : 400;
+    return res.status(status).json({ authenticated: false, error: 'Invalid or unauthorized GitHub token' });
+  }
+});
+
+// GitHub repo metadata: verify access and default branch
+// Usage: GET /api/github/repo/meta?owner=ORG&repo=NAME or /api/github/repo/meta?url=https://github.com/ORG/NAME
+app.get('/api/github/repo/meta', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'] || '';
+    const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+    if (!token) {
+      return res.status(401).json({ error: 'Missing GitHub token' });
+    }
+    let owner = String(req.query.owner || '').trim();
+    let repo = String(req.query.repo || '').trim();
+    const url = String(req.query.url || '').trim();
+    if ((!owner || !repo) && url) {
+      try {
+        const m = url.match(/github\.com\/(.*?)\/(.*?)(?:\.git|$)/i);
+        if (m) { owner = m[1]; repo = m[2]; }
+      } catch (_) {}
+    }
+    if (!owner || !repo) {
+      return res.status(400).json({ error: 'Provide owner and repo or a GitHub repo URL' });
+    }
+    const octokit = new Octokit({ auth: token });
+    const resp = await octokit.rest.repos.get({ owner, repo });
+    const data = resp?.data || {};
+    return res.json({
+      owner,
+      repo,
+      defaultBranch: data.default_branch || 'main',
+      private: Boolean(data.private),
+      archived: Boolean(data.archived),
+      htmlUrl: data.html_url || `https://github.com/${owner}/${repo}`,
+      permissions: data.permissions || {},
+    });
+  } catch (e) {
+    const status = e?.status || 500;
+    const msg = (e && e.message) ? String(e.message) : 'Failed to get repo metadata';
+    return res.status(status).json({ error: msg });
+  }
+});
+
+// GitHub PR preflight: check token scopes, repo permissions, and branch protection (if accessible)
+// Usage: GET /api/github/pr/preflight?owner=ORG&repo=NAME or /api/github/pr/preflight?url=https://github.com/ORG/NAME
+app.get('/api/github/pr/preflight', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'] || '';
+    const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+    if (!token) {
+      return res.status(401).json({ ready: false, error: 'Missing GitHub token', reasons: ['No token provided'] });
+    }
+
+    let owner = String(req.query.owner || '').trim();
+    let repo = String(req.query.repo || '').trim();
+    const url = String(req.query.url || '').trim();
+    if ((!owner || !repo) && url) {
+      try {
+        const m = url.match(/github\.com\/(.*?)\/(.*?)(?:\.git|$)/i);
+        if (m) { owner = m[1]; repo = m[2]; }
+      } catch (_) {}
+    }
+    if (!owner || !repo) {
+      return res.status(400).json({ ready: false, error: 'Provide owner and repo or a GitHub repo URL', reasons: ['owner/repo missing'] });
+    }
+
+    const octokit = new Octokit({ auth: token });
+    const reasons = [];
+    let scopes = [];
+    let user = {};
+    let repoInfo = {};
+    let permissions = {};
+    let defaultBranch = 'main';
+    let protection = { accessible: false };
+
+    // Get authenticated user and scopes
+    try {
+      const resp = await octokit.rest.users.getAuthenticated();
+      const scopesHeader = (resp && resp.headers && (resp.headers['x-oauth-scopes'] || resp.headers['X-OAuth-Scopes'])) || '';
+      scopes = String(scopesHeader || '').split(',').map(s => s.trim()).filter(Boolean);
+      user = { login: resp?.data?.login || '', id: resp?.data?.id || '', name: resp?.data?.name || '' };
+    } catch (e) {
+      reasons.push('Token not authenticated');
+    }
+
+    // Repo details and permissions
+    try {
+      const r = await octokit.rest.repos.get({ owner, repo });
+      repoInfo = r?.data || {};
+      permissions = repoInfo.permissions || {};
+      defaultBranch = repoInfo.default_branch || 'main';
+      if (repoInfo.archived) reasons.push('Repository is archived');
+    } catch (e) {
+      const msg = String(e?.message || 'Cannot access repository');
+      return res.status(e?.status || 404).json({ ready: false, error: msg, reasons: ['Repository not accessible'], details: { owner, repo } });
+    }
+
+    // Scope checks: require 'repo' for private repo; 'public_repo' or 'repo' for public
+    const isPrivate = Boolean(repoInfo.private);
+    const hasRepoScope = scopes.includes('repo');
+    const hasPublicRepoScope = scopes.includes('public_repo');
+    if (isPrivate && !hasRepoScope) reasons.push('Missing repo scope for private repository');
+    if (!isPrivate && !(hasRepoScope || hasPublicRepoScope)) reasons.push('Missing public_repo or repo scope');
+
+    // Permission checks: need push to create branch and commit, and pull to open PR
+    const canPush = Boolean(permissions.push);
+    const canPull = Boolean(permissions.pull);
+    if (!canPush) reasons.push('Token lacks push permission to the repository');
+    if (!canPull) reasons.push('Token lacks pull permission to the repository');
+
+    // Branch protection (optional; non-fatal if not accessible)
+    try {
+      const bp = await octokit.rest.repos.getBranchProtection({ owner, repo, branch: defaultBranch });
+      const prReviews = bp?.data?.required_pull_request_reviews || null;
+      const statusChecks = bp?.data?.required_status_checks || null;
+      protection = {
+        accessible: true,
+        requiredApprovals: prReviews?.required_approving_review_count || 0,
+        dismissStale: Boolean(prReviews?.dismiss_stale_reviews),
+        codeOwnerReviews: Boolean(prReviews?.require_code_owner_reviews),
+        strictStatusChecks: Boolean(statusChecks?.strict),
+        requiredContexts: Array.isArray(statusChecks?.contexts) ? statusChecks.contexts : [],
+      };
+    } catch (e) {
+      protection = { accessible: false };
+      // Do not add a failure reason; PR creation is allowed even with branch protections
+    }
+
+    const ready = reasons.length === 0;
+    return res.json({
+      ready,
+      reasons,
+      owner,
+      repo,
+      defaultBranch,
+      private: isPrivate,
+      permissions,
+      scopes,
+      user,
+      protection,
+    });
+  } catch (e) {
+    const status = e?.status || 500;
+    const msg = (e && e.message) ? String(e.message) : 'Preflight check failed';
+    return res.status(status).json({ ready: false, error: msg });
   }
 });
 
@@ -201,32 +376,198 @@ app.post(
         }
       } catch (_) {}
 
-      // Stub PR number and branch
-      const prNumber = Math.floor(100 + Math.random() * 900);
-      const branchName = `baseline-modernization-${id}`;
-
-      // Detect bearer token presence from Authorization header
       const authHeader = req.headers['authorization'] || '';
-      const tokenDetected = /^Bearer\s+\S+/.test(authHeader);
+      const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+      const tokenDetected = Boolean(token);
       const appliedPatchBytes = (req.body?.patch ? Buffer.byteLength(String(req.body.patch), 'utf8') : 0);
+      const branchBase = `baseline-modernization-${id}`;
+      const title = (req.body?.title && String(req.body.title)) || `Baseline Modernization - ${owner}/${repo}`;
+      const description = String(req.body?.description || '').trim();
+      const patch = String(req.body?.patch || '');
 
-      // In a real implementation, we'd push a branch and call GitHub API here
-      const prUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`;
+      // Strict mode: require token, owner/repo, and non-empty patch
+      if (!tokenDetected) {
+        return res.status(401).json({ error: 'Missing GitHub token' });
+      }
+      if (owner === 'unknown' || repo === 'unknown') {
+        return res.status(400).json({ error: 'Unable to derive repository owner/name from scan repoUrl' });
+      }
+      if (!patch || patch.trim().length === 0) {
+        return res.status(400).json({ error: 'Patch is required to create a PR' });
+      }
 
-      res.status(201).json({
-        id,
-        owner,
-        repo,
-        branch: branchName,
-        prUrl,
-        tokenDetected,
-        appliedPatchBytes,
-        provider: 'github',
-        mode: 'stub',
-        message: tokenDetected
-          ? 'Demo mode: token detected, but PR creation is stubbed; no remote changes were made.'
-          : 'Demo mode: no token detected; PR creation is stubbed and no remote changes were made.'
-      });
+      // Helper: parse simplified unified diff generated by frontend buildUnifiedDiff
+      // Expected shape per file:
+      // --- a/<path>\n
+      // +++ b/<path>\n
+      // @@\n
+      // -<original lines...>\n
+      // +<modified lines...>\n
+      function parseUnifiedDiff(input) {
+        const lines = String(input || '').split(/\r?\n/);
+        const files = [];
+        let currentFile = null;
+        let originalLines = [];
+        let modifiedLines = [];
+        let aPath = null;
+        const pushCurrent = () => {
+          if (currentFile) {
+            files.push({ path: currentFile, original: originalLines.join('\n'), modified: modifiedLines.join('\n') });
+          }
+        };
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.startsWith('--- ')) {
+            // finalize previous file block
+            pushCurrent();
+            currentFile = null;
+            originalLines = [];
+            modifiedLines = [];
+            const mA = line.match(/^---\s+(?:a\/)?(.+?)\s*$/);
+            aPath = mA ? mA[1] : null; // may be '/dev/null' or path
+          } else if (line.startsWith('+++ ')) {
+            const mB = line.match(/^\+\+\+\s+b\/(.+?)\s*$/);
+            const bPath = mB ? mB[1] : null;
+            currentFile = bPath || aPath || currentFile;
+          } else if (line.startsWith('@@')) {
+            // start hunk; ignore header metadata in simplified application
+          } else if (line.startsWith('-')) {
+            originalLines.push(line.substring(1));
+          } else if (line.startsWith('+')) {
+            modifiedLines.push(line.substring(1));
+          } else {
+            // ignore other context lines
+          }
+        }
+        // finalize last
+        pushCurrent();
+        return files.filter(f => f && f.path);
+      }
+
+      try {
+          const stage = 'octokit';
+          const octokit = new Octokit({ auth: token });
+          // Get repo and default branch
+          const repoInfo = await octokit.repos.get({ owner, repo });
+          const defaultBranch = repoInfo?.data?.default_branch || 'main';
+          const baseRef = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
+          const baseSha = baseRef?.data?.object?.sha;
+
+          // Create branch (handle existing branch by suffixing timestamp)
+          let branchName = branchBase;
+          try {
+            await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: baseSha });
+          } catch (e) {
+            const msg = String(e?.message || '');
+            if (msg.includes('Reference already exists')) {
+              branchName = `${branchBase}-${Date.now()}`;
+              await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: baseSha });
+            } else {
+              throw e;
+            }
+          }
+
+          // Apply unified diff by committing modified file contents to the new branch
+          const changes = parseUnifiedDiff(patch);
+          const summaryChangedFiles = [];
+          const commitMessageBase = `${title}\n\n${description || 'Automated PR created from baseline scan.'}`;
+
+          // Optionally keep the patch artifact for transparency
+          try {
+            const patchArtifactPath = `.baseline/baseline-changes-${id}.patch`;
+            const patchB64 = Buffer.from(patch || 'No patch provided').toString('base64');
+            await octokit.repos.createOrUpdateFileContents({
+              owner,
+              repo,
+              path: patchArtifactPath,
+              message: `${commitMessageBase}\n\nAdd patch artifact: ${patchArtifactPath}`,
+              content: patchB64,
+              branch: branchName,
+            });
+            summaryChangedFiles.push(patchArtifactPath);
+          } catch (e) {
+            // Non-fatal; continue with file changes
+          }
+
+          // Commit each file change (create if missing, update if exists)
+          for (const change of changes) {
+            const filePath = String(change.path || '').replace(/^\/+/, '');
+            if (!filePath) continue;
+            const newContent = String(change.modified || '');
+            const contentB64 = Buffer.from(newContent).toString('base64');
+            let sha = undefined;
+            try {
+              // Attempt to get current file on the new branch (same tip as default)
+              const cur = await octokit.repos.getContent({ owner, repo, path: filePath, ref: branchName });
+              if (cur && cur.data && !Array.isArray(cur.data) && cur.data.sha) {
+                sha = cur.data.sha;
+              }
+            } catch (e) {
+              // If 404, the file doesn't exist; proceed without sha to create
+            }
+            try {
+              await octokit.repos.createOrUpdateFileContents({
+                owner,
+                repo,
+                path: filePath,
+                message: `${commitMessageBase}\n\nApply changes to ${filePath}`,
+                content: contentB64,
+                branch: branchName,
+                ...(sha ? { sha } : {}),
+              });
+              summaryChangedFiles.push(filePath);
+            } catch (e) {
+              // If update failed because file is missing on branch, try create without sha
+              const msg = String(e?.message || '');
+              if (msg.includes('sha') || /Not Found/i.test(msg)) {
+                try {
+                  await octokit.repos.createOrUpdateFileContents({
+                    owner,
+                    repo,
+                    path: filePath,
+                    message: `${commitMessageBase}\n\nCreate ${filePath}`,
+                    content: contentB64,
+                    branch: branchName,
+                  });
+                  summaryChangedFiles.push(filePath);
+                } catch (e2) {
+                  // Skip this file; continue to next
+                }
+              }
+            }
+          }
+
+          // Open pull request
+          const prBodySummary = summaryChangedFiles.length
+            ? `\n\nFiles changed (${summaryChangedFiles.length}):\n- ${summaryChangedFiles.join('\n- ')}`
+            : '';
+          const pr = await octokit.pulls.create({
+            owner,
+            repo,
+            title,
+            body: `${description}${prBodySummary}`,
+            head: branchName,
+            base: defaultBranch,
+          });
+
+          const prUrl = pr?.data?.html_url || `https://github.com/${owner}/${repo}/pull/${pr?.data?.number || ''}`;
+          return res.status(201).json({
+            id,
+            owner,
+            repo,
+            branch: branchName,
+            prUrl,
+            tokenDetected,
+            appliedPatchBytes,
+            provider: 'github',
+            message: 'Pull Request created successfully.'
+          });
+      } catch (e) {
+          console.error('Octokit PR creation failed:', e);
+          const status = Number(e?.status) || 500;
+          const msg = (e && e.message) ? String(e.message) : 'Failed to create pull request';
+          return res.status(status).json({ error: msg });
+      }
     } catch (error) {
       console.error(`Error creating pull request for scan ${req.params.id}:`, error);
       res.status(500).json({ error: 'Failed to create pull request' });

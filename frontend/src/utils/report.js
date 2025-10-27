@@ -90,11 +90,19 @@ export function downloadBlob(filename, content, mime = 'text/plain') {
 export function buildUnifiedDiff(suggestions = []) {
   const lines = [];
   suggestions.forEach((s, idx) => {
+    const patch = typeof s.patch === 'string' ? s.patch.trim() : '';
+    if (patch && patch.length > 0) {
+      // If suggestion already provides a unified diff, append as-is
+      lines.push(patch);
+      if (!patch.endsWith('\n')) lines.push('');
+      return;
+    }
+
+    // Fallback: construct a simplified diff from original/modified fields
     const file = s.file || `file-${idx}`;
     lines.push(`--- a/${file}`);
     lines.push(`+++ b/${file}`);
     lines.push(`@@`);
-    // This is a simplified representation; for demo purposes only
     String(s.original || '').split('\n').forEach(line => lines.push(`-${line}`));
     String(s.modified || '').split('\n').forEach(line => lines.push(`+${line}`));
     lines.push('');

@@ -94,6 +94,35 @@ function ScanDetailPage() {
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
   const analyticsSectionRef = useRef(null);
 
+  // Helper: run PR readiness preflight (uses repo URL or owner/repo)
+  const runPreflight = async () => {
+    try {
+      const repo = displayData?.repoDetails || {};
+      const owner = repo.owner;
+      const repoName = repo.repoName;
+      const repoUrl = (
+        displayData?.repoUrl ||
+        (displayData?.result || {})?.repoUrl ||
+        scanData?.repoUrl ||
+        (scanData?.result || {})?.repoUrl ||
+        statusData?.repoUrl ||
+        (statusData?.result || {})?.repoUrl ||
+        ''
+      );
+      const params = {};
+      if (repoUrl) params.url = repoUrl;
+      if (owner && repoName && !repoUrl) {
+        params.owner = owner;
+        params.repo = repoName;
+      }
+      const res = await apiClient.get('/github/pr/preflight', { params });
+      return res?.data || { ready: false, reasons: ['Unknown preflight state'] };
+    } catch (e) {
+      const msg = e?.response?.data?.error || e?.message || 'Preflight failed';
+      return { ready: false, reasons: [msg] };
+    }
+  };
+
   // Socket setup (proxied by Vite to backend)
   const socket = useSocket('/');
 
@@ -107,7 +136,7 @@ function ScanDetailPage() {
           setLiveData(prev => ({ ...prev, logs }));
         }
       }
-    } catch {}
+    } catch { }
   }, [scanId]);
 
   useEffect(() => {
@@ -115,7 +144,7 @@ function ScanDetailPage() {
       if (Array.isArray(liveData?.logs)) {
         localStorage.setItem(`scanLogs:${scanId}`, JSON.stringify(liveData.logs));
       }
-    } catch {}
+    } catch { }
   }, [liveData?.logs, scanId]);
 
   // Live events from backend
@@ -131,7 +160,7 @@ function ScanDetailPage() {
           status: data.status,
           progress: data.progress,
           step: data.step,
-          logs: data.message ? [ ...(prev.logs || []), data.message ] : (prev.logs || []),
+          logs: data.message ? [...(prev.logs || []), data.message] : (prev.logs || []),
         }));
       }
     };
@@ -253,7 +282,7 @@ function ScanDetailPage() {
   const showErrorBanner = resultError || isScanFailed;
   const notFound = (resultError?.status === 404) || (resultError?.response?.status === 404);
   // Removed early error-screen return; header and inline banner render in main return
-    /* Removed early error-screen return; banner renders inline in main body */
+  /* Removed early error-screen return; banner renders inline in main body */
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen w-full px-4 py-8 bg-gray-900 text-white">
@@ -268,7 +297,7 @@ function ScanDetailPage() {
             const branch = scanData?.branch || statusData?.branch || displayData?.branch;
             const createdAt = statusData?.createdAt || scanData?.createdAt;
             const completedAt = statusData?.completedAt || scanData?.completedAt || (isScanComplete ? new Date().toISOString() : null);
-            const durationText = createdAt && completedAt ? (() => { const d = (new Date(completedAt) - new Date(createdAt)) / 1000; const mins = Math.floor(d/60); const secs = Math.floor(d%60); return `${mins}m ${secs}s`; })() : null;
+            const durationText = createdAt && completedAt ? (() => { const d = (new Date(completedAt) - new Date(createdAt)) / 1000; const mins = Math.floor(d / 60); const secs = Math.floor(d % 60); return `${mins}m ${secs}s`; })() : null;
             return (
               <div className="mt-2 text-xs text-gray-400 flex flex-wrap gap-4">
                 {ownerRepo && <span>Repo: <span className="font-mono text-white/90">{ownerRepo}</span></span>}
@@ -400,7 +429,12 @@ function ScanDetailPage() {
                   <button
                     onClick={() => {
                       try {
-                        const diffs = selectedSuggestion ? [selectedSuggestion] : (displayData?.suggestions || []);
+                        const ai = mergeSection(displayData, 'aiSuggestions') || {};
+                        const diffs = Array.isArray(ai.items) ? ai.items : [];
+                        if (!diffs.length) {
+                          toast.error('No AI suggestions available to download');
+                          return;
+                        }
                         const content = buildUnifiedDiff(diffs);
                         downloadBlob(`patch-${scanId}.diff`, content, 'text/x-diff');
                         toast.success('Patch downloaded');
@@ -416,9 +450,18 @@ function ScanDetailPage() {
                     onClick={async () => {
                       try {
                         setIsGeneratingPR(true);
-                        const diffs = selectedSuggestion ? [selectedSuggestion] : (displayData?.suggestions || []);
+                        // Run PR readiness preflight
+                        const preflight = await runPreflight();
+                        if (!preflight?.ready) {
+                          const reasons = Array.isArray(preflight?.reasons) ? preflight.reasons.join('; ') : (preflight?.error || 'Not ready');
+                          toast.error(`PR not ready: ${reasons}`);
+                          setIsGeneratingPR(false);
+                          return;
+                        }
+                        const ai = mergeSection(displayData, 'aiSuggestions') || {};
+                        const diffs = Array.isArray(ai.items) ? ai.items : [];
                         if (!Array.isArray(diffs) || diffs.length === 0) {
-                          toast.error('No suggestions available to create a PR');
+                          toast.error('No AI suggestions available to create a PR');
                           setIsGeneratingPR(false);
                           return;
                         }
@@ -437,21 +480,18 @@ function ScanDetailPage() {
                         }
                         const title = `Baseline Modernization - Scan ${scanId}`;
                         const description = `Automated PR generated from baseline scan.\n\nCounts: supported=${analytics.counts.supported}, partial=${analytics.counts.partial}, unsupported=${analytics.counts.unsupported}.`;
-                        const res = await apiClient.post(`/scans/${scanId}/pull-request`, { title, description, patch });
-                        const { prUrl, mode, message, tokenDetected } = res.data || {};
+                        const authHeaderToken = token || import.meta?.env?.VITE_GITHUB_TOKEN;
+                        const res = await apiClient.post(
+                          `/scans/${scanId}/pull-request`,
+                          { title, description, patch },
+                          { headers: { Authorization: `Bearer ${authHeaderToken}` } }
+                        );
+                        const { prUrl } = res.data || {};
                         if (prUrl) {
                           toast.success('Pull Request created');
                           window.open(prUrl, '_blank');
                         } else {
-                          const msg = String(message || '').toLowerCase();
-                          if (mode === 'stub' || msg.includes('stub') || msg.includes('demo mode')) {
-                            toast.info('Demo mode: PR created locally. No remote changes.');
-                            if (!tokenDetected) {
-                              toast.info('Add a GitHub token in Settings to enable real PRs.');
-                            }
-                          } else {
-                            toast.info(message || 'PR created');
-                          }
+                          toast.success('Pull Request created');
                         }
                       } catch (err) {
                         const status = err?.status || err?.response?.status;
@@ -484,7 +524,7 @@ function ScanDetailPage() {
           return hints ? <RouterHintsPanel hints={hints} /> : null;
         })()}
         <FeatureDetection data={mergeSection(displayData, 'projectFeatures')} />
-        // Wrap ArchitectureFileTree in Suspense for lazy-load
+        {/* Wrap ArchitectureFileTree in Suspense for lazy-load */}
         <Suspense fallback={<LoadingSpinner />}>
           <ArchitectureFileTree data={mergeSection(displayData, 'architecture')} />
         </Suspense>
@@ -568,9 +608,18 @@ function ScanDetailPage() {
           onGeneratePR={async () => {
             try {
               setIsGeneratingPR(true);
-              const diffs = selectedSuggestion ? [selectedSuggestion] : (displayData?.suggestions || []);
+              // Run PR readiness preflight
+              const preflight = await runPreflight();
+              if (!preflight?.ready) {
+                const reasons = Array.isArray(preflight?.reasons) ? preflight.reasons.join('; ') : (preflight?.error || 'Not ready');
+                toast.error(`PR not ready: ${reasons}`);
+                setIsGeneratingPR(false);
+                return;
+              }
+              const ai = mergeSection(displayData, 'aiSuggestions') || {};
+              const diffs = Array.isArray(ai.items) ? ai.items : [];
               if (!Array.isArray(diffs) || diffs.length === 0) {
-                toast.error('No suggestions available to create a PR');
+                toast.error('No AI suggestions available to create a PR');
                 setIsGeneratingPR(false);
                 return;
               }
@@ -594,19 +643,11 @@ function ScanDetailPage() {
               const createdAt = statusData?.createdAt || scanData?.createdAt || '';
               const completedAt = statusData?.completedAt || scanData?.completedAt || '';
               const res = await apiClient.post(`/scans/${scanId}/pull-request`, { title: `Baseline Modernization - ${ownerRepo}`, description: `Automated PR created from baseline scan.\n\nBranch: ${branch}\nStarted: ${createdAt}\nCompleted: ${completedAt}`, patch }, { headers: { Authorization: `Bearer ${authHeaderToken}` } });
-              const { prUrl, mode, message, tokenDetected } = res.data || {};
+              const { prUrl } = res.data || {};
               if (prUrl) {
                 toast.success(`PR created: ${prUrl}`);
               } else {
-                const msg = String(message || '').toLowerCase();
-                if (mode === 'stub' || msg.includes('stub') || msg.includes('demo mode')) {
-                  toast.info('Demo mode: PR created locally. No remote changes.');
-                  if (!tokenDetected) {
-                    toast.info('Add a GitHub token in Settings to enable real PRs.');
-                  }
-                } else {
-                  toast.success('PR created');
-                }
+                toast.success('PR created');
               }
             } catch (err) {
               const status = err?.response?.status;
@@ -630,21 +671,21 @@ function ScanDetailPage() {
               const branch = status?.branch || displayData?.branch || '';
               const createdAt = status?.createdAt || '';
               const completedAt = status?.completedAt || (isScanComplete ? new Date().toISOString() : '');
-              const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+              const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
               const lines = [];
-              lines.push(['Meta','Repo', ownerRepo].map(esc).join(','));
-              lines.push(['Meta','Branch', branch].map(esc).join(','));
-              lines.push(['Meta','Started', createdAt].map(esc).join(','));
-              lines.push(['Meta','Completed', completedAt].map(esc).join(','));
-              lines.push(['Analytics','Supported', (analytics.counts?.supported || 0)].map(esc).join(','));
-              lines.push(['Analytics','Partial', (analytics.counts?.partial || 0)].map(esc).join(','));
-              lines.push(['Analytics','Unsupported', (analytics.counts?.unsupported || 0)].map(esc).join(','));
-              lines.push(['Analytics','Suggested', (analytics.counts?.suggested || 0)].map(esc).join(','));
-              (compat.supportedFeatures || []).forEach(f => lines.push(['Supported','Feature', f].map(esc).join(',')));
-              (compat.partialFeatures || []).forEach(f => lines.push(['Partial','Feature', f].map(esc).join(',')));
-              (compat.unsupportedCode || []).forEach(i => lines.push(['Unsupported','Item', i].map(esc).join(',')));
-              (compat.missingConfigs || []).forEach(i => lines.push(['MissingConfig','File', i].map(esc).join(',')));
-              (compat.recommendations || []).forEach(i => lines.push(['Recommendation','Action', i].map(esc).join(',')));
+              lines.push(['Meta', 'Repo', ownerRepo].map(esc).join(','));
+              lines.push(['Meta', 'Branch', branch].map(esc).join(','));
+              lines.push(['Meta', 'Started', createdAt].map(esc).join(','));
+              lines.push(['Meta', 'Completed', completedAt].map(esc).join(','));
+              lines.push(['Analytics', 'Supported', (analytics.counts?.supported || 0)].map(esc).join(','));
+              lines.push(['Analytics', 'Partial', (analytics.counts?.partial || 0)].map(esc).join(','));
+              lines.push(['Analytics', 'Unsupported', (analytics.counts?.unsupported || 0)].map(esc).join(','));
+              lines.push(['Analytics', 'Suggested', (analytics.counts?.suggested || 0)].map(esc).join(','));
+              (compat.supportedFeatures || []).forEach(f => lines.push(['Supported', 'Feature', f].map(esc).join(',')));
+              (compat.partialFeatures || []).forEach(f => lines.push(['Partial', 'Feature', f].map(esc).join(',')));
+              (compat.unsupportedCode || []).forEach(i => lines.push(['Unsupported', 'Item', i].map(esc).join(',')));
+              (compat.missingConfigs || []).forEach(i => lines.push(['MissingConfig', 'File', i].map(esc).join(',')));
+              (compat.recommendations || []).forEach(i => lines.push(['Recommendation', 'Action', i].map(esc).join(',')));
               const csv = lines.join('\n');
               downloadBlob(`scan-${scanId}-summary.csv`, csv, 'text/csv');
               toast.success('CSV exported');
@@ -655,7 +696,7 @@ function ScanDetailPage() {
           onExportPDF={() => {
             try {
               const md = buildMarkdownReport(displayData || {});
-              const html = `<!doctype html><html><head><meta charset=\"utf-8\"><title>Scan Report</title></head><body><pre>${md.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre></body></html>`;
+              const html = `<!doctype html><html><head><meta charset=\"utf-8\"><title>Scan Report</title></head><body><pre>${md.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</pre></body></html>`;
               downloadBlob(`scan-${scanId}-report.html`, html, 'text/html');
               toast.success('Open the HTML file then print to PDF');
             } catch (e) {

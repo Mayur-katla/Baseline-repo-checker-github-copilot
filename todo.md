@@ -191,4 +191,14 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 
 
 
+## 13. Pull Request Automation (v2.3.0)
+
+- ⏳ **PENDING** - Apply unified diff to files in new branch (Octokit commits)
+- ⏳ **PENDING** - Add PR preflight: token scopes, repo permissions, branch protection
+- ⏳ **PENDING** - Improve PR endpoint error reporting and structured responses
+- ⏳ **PENDING** - Settings page: display token scopes, repo meta, and PR readiness
+- ⏳ **PENDING** - Add `.env.example` entries for GitHub token and API URLs
+- ⏳ **PENDING** - Document `/api/github/me`, `/api/github/repo/meta`, and PR behavior
+- ⏳ **PENDING** - Backend unit tests for PR creation and preflight
+- ⏳ **PENDING** - Frontend integration tests for PR flows
 

@@ -17,7 +17,7 @@ Default port: `3001` (configurable via `.env` or environment).
 - `POST /api/scans` → `{ scanId, status }`
 - `GET /api/scans/:id/status` → `{ scanId, status, progress, logs }`
 - `GET /api/scans/:id/result` → full report (once done)
-- `POST /api/scans/:id/apply` → `{ action: 'download' | 'create_pr' }`
+- `POST /api/scans/:id/pull-request` → creates a PR. Requires `Authorization: Bearer <github_token>` (or `GITHUB_TOKEN` env). The backend validates input, parses the unified diff provided by the frontend, commits modified/new file contents on a new branch, and opens a pull request. On errors (auth failure, permissions, not found), the API returns an appropriate HTTP status with `{ error }`.
 - `GET /api/report/download?scanId=...` → JSON report download
 - `GET /api/report/bundle?scanId=...` → ZIP (JSON + CSV + PDF)
 - `GET /api/security/sast?scanId=...` → SAST summary (counts + top findings)
@@ -25,6 +25,12 @@ Default port: `3001` (configurable via `.env` or environment).
 - `GET /api/iac/checks?scanId=...` → IaC checks summary
 - `POST /api/security/run/semgrep` → run Semgrep SAST and persist results
 - `POST /api/security/run/trufflehog` → run Trufflehog secrets scan and persist results
+
+### GitHub Integration
+
+- `GET /api/github/me` → validates the provided token and returns `{ authenticated, user, scopes }`. Include `Authorization: Bearer <github_token>` or set `GITHUB_TOKEN` in env.
+- `GET /api/github/repo/meta?owner=<org>&repo=<name>` or `?url=https://github.com/<org>/<name>` → returns `{ owner, repo, defaultBranch, private, archived, htmlUrl, permissions }` to assist preflight checks. Requires `Authorization: Bearer <github_token>`.
+- `GET /api/github/pr/preflight?owner=<org>&repo=<name>` or `?url=https://github.com/<org>/<name>` → evaluates PR readiness for the repository and the provided token. Returns `{ ready, reasons[], owner, repo, defaultBranch, private, permissions, scopes, user, protection }`. Protection includes `{ accessible, requiredApprovals, strictStatusChecks, requiredContexts[] }` when branch protection is accessible; lack of access does not block PR creation. Requires `Authorization: Bearer <github_token>`.
 
 ### Request Contract & Validation
 
@@ -53,6 +59,8 @@ Invalid inputs return `400 Bad Request` with an `errors` array.
 - `PORT`: backend server port
 - `FRONTEND_URL`: comma-separated allowed origins for CORS
 - `MONGODB_URI`: optional persistence
+- `GITHUB_TOKEN`: optional default GitHub token used when Authorization header not provided
+- `REDIS_URL` / `REDIS_HOST`: optional Redis; the backend only attempts to connect when one of these is set
 
 ## Testing
 
