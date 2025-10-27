@@ -6,7 +6,7 @@ This document outlines all required changes, enhancements, and optimizations for
 - ✅ **COMPLETED** - Create root `README.md` with project overview and setup instructions.
 - ✅ **COMPLETED** - Create root `package.json` for managing root-level scripts.
 - ✅ **COMPLETED** - Create `docker-compose.yml` for easier local development setup.
-- ✅ **COMPLETED** - Create `.env.example` with sample environment variables.
+- ⏳ **PENDING** - Create `.env.example` with sample environment variables — Not found in repo; add root and frontend entries for `GITHUB_TOKEN`/`VITE_API_URL` — Priority: High — Due: 2025-10-30.
 - ✅ **COMPLETED** - Add a `LICENSE` file.
 - ✅ **COMPLETED** - Create `backend/src/controllers` and `backend/src/routes` directories.
 - ✅ **COMPLETED** - Create `database/schemas` and `database/seeders` directories.
@@ -165,20 +165,20 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 
 ## 11. Baseline Spec Alignment (from `main_baseline_repo_checker.json`)
 
-- ✅ **COMPLETED** - Migrate backend from JavaScript to TypeScript (strict mode)
-- ✅ **COMPLETED** - Migrate frontend to TypeScript with Vite config and typings
-- ✅ **COMPLETED** - Add Redis caching layer and integrate into scan status/results
-- ✅ **COMPLETED** - Docker support (dev via Compose) — Kubernetes manifests added
-- ✅ **COMPLETED** - Integrate security scanning tools: `semgrep`, `trufflehog`, `gitleaks`
-- ✅ **COMPLETED** - Integrate IaC/container tools: `checkov`, `tfsec`, `dockle`
-- ✅ **COMPLETED** - Add backend endpoints for SAST, Secrets, and IaC summaries
-- ✅ **COMPLETED** - Unified reporting — JSON export endpoint exists; add PDF/CSV bundling
-- ✅ **COMPLETED** - Comparative analysis views (framework and cloud comparison dashboards)
-- ✅ **COMPLETED** - Plugin architecture for detectors (language/framework/tool plugins)
-- ✅ **COMPLETED** - Compliance reporting scaffolds (SOC2/ISO27001/GDPR sections)
-- ✅ **COMPLETED** - Predictive analytics (technical debt/security risk projections)
-- ✅ **COMPLETED** - Monaco editor integration for multi-language code views
-- ✅ **COMPLETED** - React Flow-based architecture diagrams for repos
+ - 🔄 **IN PROGRESS** - Migrate backend from JavaScript to TypeScript (strict mode) — `tsconfig.json` exists, but core backend files remain `.js` — Priority: Medium — Target: 2025-11-10.
+ - 🔄 **IN PROGRESS** - Migrate frontend to TypeScript with Vite config and typings — `tsconfig.json` strict; mixed `.tsx`/`.jsx` present — Priority: Medium — Target: 2025-11-05.
+ - ✅ **COMPLETED** - Add Redis caching layer and integrate into scan status/results — Completed 2025-10-27.
+ - ✅ **COMPLETED** - Docker support (dev via Compose) — Kubernetes manifests added — Completed 2025-10-27.
+ - ✅ **COMPLETED** - Integrate security scanning tools: `semgrep`, `trufflehog`, `gitleaks`.
+ - ✅ **COMPLETED** - Integrate IaC/container tools: `checkov`, `tfsec`, `dockle`.
+ - ✅ **COMPLETED** - Add backend endpoints for SAST, Secrets, and IaC summaries.
+ - ✅ **COMPLETED** - Unified reporting — JSON export endpoint exists; add PDF/CSV bundling.
+ - ✅ **COMPLETED** - Comparative analysis views (framework and cloud comparison dashboards).
+ - ✅ **COMPLETED** - Plugin architecture for detectors (language/framework/tool plugins) — Completed 2025-10-27.
+ - ✅ **COMPLETED** - Compliance reporting scaffolds (SOC2/ISO27001/GDPR sections).
+ - ✅ **COMPLETED** - Predictive analytics (technical debt/security risk projections).
+ - ✅ **COMPLETED** - Monaco editor integration for multi-language code views.
+ - ✅ **COMPLETED** - React Flow-based architecture diagrams for repos.
 
 ---
 
@@ -193,12 +193,21 @@ Enhancements to the Start Scan experience for interactivity, error resistance, a
 
 ## 13. Pull Request Automation (v2.3.0)
 
-- ⏳ **PENDING** - Apply unified diff to files in new branch (Octokit commits)
-- ⏳ **PENDING** - Add PR preflight: token scopes, repo permissions, branch protection
-- ⏳ **PENDING** - Improve PR endpoint error reporting and structured responses
-- ⏳ **PENDING** - Settings page: display token scopes, repo meta, and PR readiness
-- ⏳ **PENDING** - Add `.env.example` entries for GitHub token and API URLs
-- ⏳ **PENDING** - Document `/api/github/me`, `/api/github/repo/meta`, and PR behavior
-- ⏳ **PENDING** - Backend unit tests for PR creation and preflight
-- ⏳ **PENDING** - Frontend integration tests for PR flows
+ - ✅ **COMPLETED** - Apply unified diff to files in new branch (Octokit commits) — Implemented in `backend/src/index.js` via `parseUnifiedDiff` and per-file commits — Completed 2025-10-27.
+ - ✅ **COMPLETED** - Add PR preflight: token scopes, repo permissions, branch protection — Implemented in `GET /api/github/pr/preflight` — Completed 2025-10-27.
+ - 🔄 **IN PROGRESS** - Improve PR endpoint error reporting and structured responses — Basic error mapping exists in frontend; backend returns generic messages; add standardized error codes and details — Priority: Medium — Target: 2025-11-03.
+ - ✅ **COMPLETED** - Settings page: display token scopes, repo meta, and PR readiness — Implemented in `frontend/src/pages/Settings.jsx` — Completed 2025-10-27.
+ - ⏳ **PENDING** - Add `.env.example` entries for GitHub token and API URLs — No `.env.example` present; add root and frontend examples — Priority: High — Due: 2025-10-30.
+ - 🔄 **IN PROGRESS** - Document `/api/github/me`, `/api/github/repo/meta`, and PR behavior — Backend README documents endpoints; extend frontend Docs page — Priority: Medium — Target: 2025-11-01.
+ - ⏳ **PENDING** - Backend unit tests for PR creation and preflight — Tests directory absent; add Jest + Supertest coverage — Priority: High — Due: 2025-11-07.
+ - ⏳ **PENDING** - Frontend integration tests for PR flows — Add Cypress tests for token, preflight, PR creation — Priority: Medium — Due: 2025-11-09.
+
+## 14. Follow-ups & New Tasks
+
+- ⏳ **PENDING** - Create root `.env.example` with `GITHUB_TOKEN`, `REDIS_*`, and backend config — Priority: High — Due: 2025-10-30.
+- ⏳ **PENDING** - Create `frontend/.env.example` with `VITE_API_URL` and optional `VITE_GITHUB_TOKEN` — Priority: High — Due: 2025-10-30.
+- ⏳ **PENDING** - Add backend unit tests for PR preflight and unified diff commit flow — Priority: High — Due: 2025-11-07.
+- ⏳ **PENDING** - Add frontend integration tests for PR creation and error handling — Priority: Medium — Due: 2025-11-09.
+- 🔄 **IN PROGRESS** - Complete frontend TypeScript migration (convert `.jsx` pages to `.tsx`) — Priority: Medium — Target: 2025-11-05.
+- 🔄 **IN PROGRESS** - Begin backend TypeScript migration (controllers/routes/services) — Priority: Medium — Target: 2025-11-10.
 
