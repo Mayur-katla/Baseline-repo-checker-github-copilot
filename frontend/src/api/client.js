@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { logError } from '../utils/logger.js';
+import { showToast } from '../hooks/useToast.jsx';
 
 const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
 const defaultBaseURL = isBrowser ? '/api' : 'http://localhost:3001/api';
@@ -18,6 +19,13 @@ client.interceptors.request.use((config) => {
       const token = settings.githubToken;
       if (token && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    // Fallback: use env token if available and no Authorization set yet
+    if (!config.headers.Authorization) {
+      const envToken = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env.VITE_GITHUB_TOKEN : undefined;
+      if (envToken) {
+        config.headers.Authorization = `Bearer ${envToken}`;
       }
     }
   } catch {}
@@ -51,6 +59,17 @@ client.interceptors.response.use(
       message: message,
       context: { status, baseURL: derivedBaseURL }
     }, error);
+
+    // Global unauthorized/forbidden notifications for immediate feedback
+    if (status === 401 || status === 403) {
+      const title = status === 401 ? 'Invalid credentials/access' : 'Access denied';
+      const toastMsg = serverMsg ? `${title}: ${serverMsg}` : title;
+      try {
+        showToast({ message: toastMsg, severity: 'error', autoHideDuration: 5000 });
+      } catch (_) {
+        // ignore toast failures
+      }
+    }
     return Promise.reject(Object.assign(error, info));
   }
 );

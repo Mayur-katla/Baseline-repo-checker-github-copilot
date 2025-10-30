@@ -1,4 +1,5 @@
 const { EventEmitter } = require('events');
+// uuid type is provided via @types/uuid or local d.ts; keep runtime require
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
@@ -10,14 +11,26 @@ const ScanModel = require('../models/Scan');
 const { generateAiSuggestions } = require('../services/llmSuggestions');
 const { runDetectors } = require('../services/pluginRegistry');
 
-// Unified feature/environment/architecture detection builder
+/**
+ * @typedef {{ ts: number, msg: string }} TimelineEntry
+ */
+/**
+ * Unified feature/environment/architecture detection builder
+ * @param {string} root
+ * @param {string[]} files
+ * @param {string} repoUrl
+ * @returns {Promise<any>}
+ */
 async function buildDetected(root, files, repoUrl) {
-  const summaryLog = [];
-  const log = (msg) => summaryLog.push({ ts: Date.now(), msg });
+  // Structured summary object expected by the frontend SummaryLog component
+  /** @type {{ duration: string, filesIgnored: number, agentVersion: string, scanDate: string, logs: TimelineEntry[], stats?: any, resourceUsage?: any, warnings?: string[] }} */
+  const summaryLog = { duration: '', filesIgnored: 0, agentVersion: 'N/A', scanDate: '', logs: [] };
+  const log = (/** @type {string} */ msg) => summaryLog.logs.push({ ts: Date.now(), msg });
 
   // Aggregate plain feature map per file
+  /** @type {Record<string, string[]>} */
   const features = {};
-  const addFeature = (file, feature) => {
+  const addFeature = (/** @type {string} */ file, /** @type {string} */ feature) => {
     if (!features[file]) features[file] = [];
     features[file].push(feature);
   };
@@ -35,7 +48,7 @@ async function buildDetected(root, files, repoUrl) {
         const feats = await parser.detectCssFeatures(abs);
         for (const f of feats) addFeature(rel, f);
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // Read package.json if available
@@ -43,23 +56,25 @@ async function buildDetected(root, files, repoUrl) {
   try {
     const pkgStr = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
     packageJson = JSON.parse(pkgStr);
-  } catch (_) {}
+  } catch (_) { }
 
   // Environment and versioning
   log('Detecting environment and versioning');
+  /** @type {any} */
   const env = await parser.detectEnvironmentAndVersioning(root, packageJson);
 
   // Repo details (frameworks, build tools, languages, etc.)
   log('Detecting repo details');
+  /** @type {any} */
   const repoDetails = await parser.detectRepoDetails(root, repoUrl, {}, packageJson);
 
   // Security & performance
   log('Detecting security and performance');
-  const secPerf = await parser.detectSecurityAndPerformance(root);
+  const secPerf = /** @type {any} */ (await parser.detectSecurityAndPerformance(root));
 
   // Vulnerability severity summary derived from npm audit JSON (environment.securityVulnerabilities)
   try {
-    const vulns = Array.isArray(env?.securityVulnerabilities) ? env.securityVulnerabilities : [];
+    const vulns = /** @type {any[]} */ (Array.isArray(env?.securityVulnerabilities) ? env.securityVulnerabilities : []);
     const severitySummary = { low: 0, moderate: 0, high: 0, critical: 0, unknown: 0 };
     for (const v of vulns) {
       const sev = String(v?.severity || v?.severityValue || v?.severity_level || 'unknown').toLowerCase();
@@ -70,7 +85,7 @@ async function buildDetected(root, files, repoUrl) {
       else severitySummary.unknown++;
     }
     secPerf.vulnSeveritySummary = severitySummary;
-  } catch (_) {}
+  } catch (_) { }
 
 
   // Derive high-level projectFeatures list for frontend aggregators
@@ -89,18 +104,19 @@ async function buildDetected(root, files, repoUrl) {
   try {
     const allFiles = await repoAnalyzer.walkFiles(root);
     const candidateNames = [
-      '.browserslistrc','browserslist','package.json','package-lock.json','yarn.lock','pnpm-lock.yaml',
-      'angular.json','nx.json','workspace.json','lerna.json',
-      'tsconfig.json','tsconfig.app.json','tsconfig.spec.json',
-      'vite.config.js','vite.config.ts',
-      'webpack.config.js','rollup.config.js','esbuild.config.js',
-      'babel.config.js','postcss.config.js','tailwind.config.js',
-      'jest.config.js','karma.conf.js','protractor.conf.js',
-      'eslint.config.js','.eslintrc.js','.eslintrc.json',
-      'prettier.config.js','.prettierrc','.prettierrc.json',
-      'next.config.js','next.config.mjs','nuxt.config.js','nuxt.config.ts',
-      'svelte.config.js','vue.config.js','docker-compose.yml','Dockerfile'
+      '.browserslistrc', 'browserslist', 'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+      'angular.json', 'nx.json', 'workspace.json', 'lerna.json',
+      'tsconfig.json', 'tsconfig.app.json', 'tsconfig.spec.json',
+      'vite.config.js', 'vite.config.ts',
+      'webpack.config.js', 'rollup.config.js', 'esbuild.config.js',
+      'babel.config.js', 'postcss.config.js', 'tailwind.config.js',
+      'jest.config.js', 'karma.conf.js', 'protractor.conf.js',
+      'eslint.config.js', '.eslintrc.js', '.eslintrc.json',
+      'prettier.config.js', '.prettierrc', '.prettierrc.json',
+      'next.config.js', 'next.config.mjs', 'nuxt.config.js', 'nuxt.config.ts',
+      'svelte.config.js', 'vue.config.js', 'docker-compose.yml', 'Dockerfile'
     ];
+    /** @type {Set<string>} */
     const found = new Set();
     for (const rel of allFiles) {
       const base = path.basename(rel);
@@ -109,11 +125,20 @@ async function buildDetected(root, files, repoUrl) {
     architecture.configFiles = Array.from(found).sort();
 
     // Build compact file tree (top 2 levels, limited nodes)
+    /**
+     * @param {string[]} files
+     * @param {number} [maxDepth]
+     * @param {number} [maxNodes]
+     */
     const buildFileTree = (files, maxDepth = 2, maxNodes = 300) => {
       const sepRegex = /[\\/]+/;
       const rootNode = { name: '/', type: 'dir', children: [] };
       let nodeCount = 1;
 
+      /**
+       * @param {{ name: string, type: 'dir'|'file', children?: any[] }} parent
+       * @param {string} name
+       */
       const findChildDir = (parent, name) => {
         const idx = parent.children.findIndex(c => c.type === 'dir' && c.name === name);
         if (idx >= 0) return parent.children[idx];
@@ -150,6 +175,9 @@ async function buildDetected(root, files, repoUrl) {
       }
 
       // sort children alphabetically, dirs first
+      /**
+       * @param {{ children?: any[] }} node
+       */
       const sortTree = (node) => {
         if (!node?.children) return;
         node.children.sort((a, b) => {
@@ -164,7 +192,7 @@ async function buildDetected(root, files, repoUrl) {
     };
 
     architecture.fileTree = buildFileTree(allFiles);
-  } catch (_) {}
+  } catch (_) { }
 
   // Derive frameworks from environment and repoDetails
   const envFrameworks = Array.isArray(env?.primaryFrameworks) ? env.primaryFrameworks : [];
@@ -203,10 +231,13 @@ async function buildDetected(root, files, repoUrl) {
       if (ia === ib) return String(a).localeCompare(String(b));
       return ia - ib;
     });
-  } catch {}
+  } catch { }
   // Fallback framework heuristics from config files
   try {
     const cfg = new Set(architecture.configFiles);
+    /**
+     * @param {string} name
+     */
     const mergeFramework = (name) => {
       architecture.frameworks = Array.from(new Set([...(architecture.frameworks || []), name]));
     };
@@ -228,12 +259,12 @@ async function buildDetected(root, files, repoUrl) {
     if (cfg.has('svelte.config.js')) {
       mergeFramework('Svelte');
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // Re-apply router enforcement after fallback heuristics
   try {
     architecture.frameworks = parser.enforceRouterAllowList(architecture.frameworks, env);
-  } catch {}
+  } catch { }
 
   // Compatibility placeholder: leave to frontend aggregator using projectFeatures
   const compatibility = { browserCompatibility: {} };
@@ -254,7 +285,7 @@ async function buildDetected(root, files, repoUrl) {
       securityAndPerformance: secPerf,
       environment: env,
     });
-  } catch (_) {}
+  } catch (_) { }
 
   // Build result object and run plugin detectors
   let result = {
@@ -275,7 +306,7 @@ async function buildDetected(root, files, repoUrl) {
   try {
     result = await runDetectors({ root, files, repoUrl, result });
   } catch (e) {
-    try { summaryLog.push({ ts: Date.now(), msg: `[plugin] error: ${e?.message || e}` }); } catch {}
+    try { summaryLog.logs.push({ ts: Date.now(), msg: `[plugin] error: ${e?.message || e}` }); } catch { }
   }
 
   return result;
@@ -284,15 +315,23 @@ async function buildDetected(root, files, repoUrl) {
 class JobQueue extends EventEmitter {
   constructor() {
     super();
+    /** @type {Map<string, any>} */
     this.jobs = new Map();
+    /** @type {boolean} */
     this.useDatabase = false;
+    /** @type {Set<string>} */
     this.activeJobs = new Set();
+    /** @type {any[]} */
     this.pending = [];
+    /** @type {number} */
     this.maxConcurrent = Number.parseInt(process.env.MAX_CONCURRENT_JOBS || '2', 10);
     if (!Number.isFinite(this.maxConcurrent) || this.maxConcurrent <= 0) this.maxConcurrent = 2;
   }
-  
+
   // Initialize database connection
+  /**
+   * @param {boolean} dbConnected
+   */
   async init(dbConnected) {
     this.useDatabase = dbConnected;
     if (this.useDatabase) {
@@ -317,6 +356,10 @@ class JobQueue extends EventEmitter {
     }
   }
 
+  /**
+   * @param {any} payload
+   * @returns {Promise<any>}
+   */
   async createJob(payload) {
     const id = uuidv4();
     const job = {
@@ -327,10 +370,10 @@ class JobQueue extends EventEmitter {
       result: null,
       createdAt: Date.now()
     };
-    
+
     // Store in memory cache
     this.jobs.set(id, job);
-    
+
     // Store in database if available
     if (this.useDatabase) {
       try {
@@ -339,13 +382,14 @@ class JobQueue extends EventEmitter {
         console.error('Error saving job to database:', err);
       }
     }
-    
+
     // Enqueue and schedule respecting concurrency limits
     this.pending.push(job);
     this._scheduleNext();
     return job;
   }
 
+  /** @returns {Promise<void>} */
   async shutdown() {
     return new Promise(resolve => {
       const check = () => {
@@ -359,6 +403,10 @@ class JobQueue extends EventEmitter {
     });
   }
 
+  /**
+   * @param {string} id
+   * @returns {Promise<void>}
+   */
   async wait(id) {
     return new Promise(resolve => {
       const check = () => {
@@ -372,13 +420,16 @@ class JobQueue extends EventEmitter {
     });
   }
 
+  /**
+   * @param {{ id: string, status: string, progress: number, result: any }} job
+   */
   async _updateJobInDb(job) {
     if (!this.useDatabase) return;
-    
+
     try {
       await JobModel.findOneAndUpdate(
         { id: job.id },
-        { 
+        {
           status: job.status,
           progress: job.progress,
           result: job.result,
@@ -390,10 +441,15 @@ class JobQueue extends EventEmitter {
       console.error(`Error updating job ${job.id} in database:`, err);
     }
   }
-  
+
+  /**
+   * @param {any} job
+   */
   _process(job) {
     this.activeJobs.add(job.id);
     job.status = 'processing';
+    // Mark start time for accurate duration calculation
+    job.startedAt = Date.now();
 
     const timeoutMs = Number.parseInt(process.env.SCAN_TIMEOUT_MS || '0', 10);
     let timeoutHandle = null;
@@ -403,7 +459,7 @@ class JobQueue extends EventEmitter {
         job.cancelReason = 'timeout';
       }, timeoutMs);
     }
-    class CancellationError extends Error {}
+    class CancellationError extends Error { }
     const ensureNotCancelled = () => {
       if (job.cancelRequested) throw new CancellationError(job.cancelReason || 'cancelled');
     };
@@ -430,9 +486,9 @@ class JobQueue extends EventEmitter {
             this.emit('done', { id: job.id, result: job.result });
           }
         } finally {
-            if (timeoutHandle) clearTimeout(timeoutHandle);
-            this.activeJobs.delete(job.id);
-            this._scheduleNext();
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          this.activeJobs.delete(job.id);
+          this._scheduleNext();
         }
       })();
     } else {
@@ -449,6 +505,10 @@ class JobQueue extends EventEmitter {
         { name: 'Done', progress: 100 }
       ];
       let currentStep = 0;
+      /**
+       * @param {number} stepIndex
+       * @param {('queued'|'processing'|'done'|'error')=} status
+       */
       const updateProgress = (stepIndex, status) => {
         currentStep = stepIndex;
         job.progress = steps[stepIndex].progress;
@@ -457,14 +517,15 @@ class JobQueue extends EventEmitter {
         this.emit('progress', { id: job.id, progress: job.progress, step: steps[currentStep].name });
       };
       updateProgress(0);
-  
+
       (async () => {
+        /** @type {string|null} */
         let workspaceRoot = null;
         try {
           updateProgress(1);
           ensureNotCancelled();
           let scan = null;
-  
+
           if (this.useDatabase) {
             scan = new ScanModel({
               id: job.id,
@@ -474,7 +535,7 @@ class JobQueue extends EventEmitter {
             });
             await scan.save();
           }
-  
+
           if (job.payload && job.payload.repoUrl) {
             ensureNotCancelled();
             console.log(`Processing job ${job.id} with repository URL: ${job.payload.repoUrl}`);
@@ -529,15 +590,15 @@ class JobQueue extends EventEmitter {
               defaultBranch: meta.defaultBranch || ''
             };
             try {
-              detected.summaryLog = Array.isArray(detected.summaryLog) ? detected.summaryLog : [];
+              detected.summaryLog = detected.summaryLog && typeof detected.summaryLog === 'object' ? detected.summaryLog : { logs: [] };
               const filesChangedCount = (Array.isArray(changedPaths) && changedPaths.length > 0) ? files.length : 0;
-              detected.summaryLog.push(
+              detected.summaryLog.logs.push(
                 { ts: Date.now(), msg: `Step timing: clone ${cloneMs}ms, walk ${walkMs}ms, analysis ${analysisMs}ms` },
                 { ts: Date.now(), msg: `Files discovered: ${files.length}, analyzed: ${totalFiles}, changed: ${filesChangedCount}` }
               );
-            } catch (_) {}
+            } catch (_) { }
             console.log(`Detected features in ${Object.keys(detected.features).length} files`);
-            
+
             const baselineMapping = {};
             for (const f of Object.keys(detected.features)) {
               baselineMapping[f] = detected.features[f].map(k => baseline.lookup(k));
@@ -546,7 +607,7 @@ class JobQueue extends EventEmitter {
             job.result.baseline = baselineMapping;
 
             updateProgress(3);
-            
+
             // Recalculate impactScore based on dynamic formula
             try {
               const filesScanned = files.length;
@@ -559,8 +620,8 @@ class JobQueue extends EventEmitter {
                 polyfillsRemoved,
                 impactScore,
               };
-            } catch (_) {}
-  
+            } catch (_) { }
+
             if (this.useDatabase && scan) {
               scan.features = new Map(Object.entries(detected.features));
               scan.baselineMapping = new Map(Object.entries(baselineMapping));
@@ -580,7 +641,62 @@ class JobQueue extends EventEmitter {
             }
           } else if (job.payload && job.payload.localPath) {
             console.log(`Processing job ${job.id} with local path: ${job.payload.localPath}`);
-            workspaceRoot = String(job.payload.localPath).trim();
+            /** @type {TimelineEntry[]} */
+            const preLog = [];
+            // Resolve and validate local path
+            let providedPath = String(job.payload.localPath || '').trim();
+            if (!providedPath) {
+              const errMsg = 'Local path is empty. Provide a valid directory path.';
+              console.error(errMsg);
+              job.status = 'failed';
+              job.message = errMsg;
+              job.result = { error: errMsg, summaryLog: [{ ts: Date.now(), msg: errMsg }] };
+              if (this.useDatabase) {
+                try { await ScanModel.findOneAndUpdate({ id: job.id }, { status: 'failed', progress: 100, result: job.result }); } catch (_) { }
+              }
+              this.emit('done', { id: job.id, result: job.result });
+              return;
+            }
+            workspaceRoot = path.resolve(providedPath);
+            preLog.push({ ts: Date.now(), msg: `Resolved local path to: ${workspaceRoot}` });
+            try {
+              const stat = fs.statSync(workspaceRoot);
+              if (!stat.isDirectory()) {
+                const errMsg = `Local path is not a directory: ${workspaceRoot}`;
+                console.error(errMsg);
+                job.status = 'failed';
+                job.message = errMsg;
+                job.result = { error: errMsg, summaryLog: [...preLog, { ts: Date.now(), msg: errMsg }] };
+                if (this.useDatabase) {
+                  try { await ScanModel.findOneAndUpdate({ id: job.id }, { status: 'failed', progress: 100, result: job.result }); } catch (_) { }
+                }
+                this.emit('done', { id: job.id, result: job.result });
+                return;
+              }
+            } catch (e) {
+              const errMsg = `Local path not found or inaccessible: ${workspaceRoot}`;
+              console.error(errMsg, e);
+              job.status = 'failed';
+              job.message = errMsg;
+              job.result = { error: errMsg, summaryLog: [...preLog, { ts: Date.now(), msg: errMsg }] };
+              if (this.useDatabase) {
+                try { await ScanModel.findOneAndUpdate({ id: job.id }, { status: 'failed', progress: 100, result: job.result }); } catch (_) { }
+              }
+              this.emit('done', { id: job.id, result: job.result });
+              return;
+            }
+            try { fs.accessSync(workspaceRoot, fs.constants.R_OK); } catch (e) {
+              const errMsg = `Read access denied for path: ${workspaceRoot}`;
+              console.error(errMsg);
+              job.status = 'failed';
+              job.message = errMsg;
+              job.result = { error: errMsg, summaryLog: [...preLog, { ts: Date.now(), msg: errMsg }] };
+              if (this.useDatabase) {
+                try { await ScanModel.findOneAndUpdate({ id: job.id }, { status: 'failed', progress: 100, result: job.result }); } catch (_) { }
+              }
+              this.emit('done', { id: job.id, result: job.result });
+              return;
+            }
             updateProgress(2);
             const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
             const excludePathsLocal = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
@@ -589,10 +705,14 @@ class JobQueue extends EventEmitter {
             const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
             const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
             const mergedExcludes = Array.from(new Set([...(excludePathsLocal || []), ...userExclEnv]));
+            const walkStart = Date.now();
             const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+            const walkMs = Date.now() - walkStart;
+            preLog.push({ ts: Date.now(), msg: `Walked local directory in ${walkMs}ms; files discovered: ${files.length}` });
             console.log(`Found ${files.length} files to analyze from local path`);
             let filesAnalyzed = 0;
             const totalFiles = files.length;
+            const analysisStart = Date.now();
             for (const file of files) {
               ensureNotCancelled();
               await new Promise(resolve => setTimeout(resolve, 10));
@@ -601,8 +721,15 @@ class JobQueue extends EventEmitter {
               job.progress = analysisProgress;
               this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
             }
+            const analysisMs = Date.now() - analysisStart;
             ensureNotCancelled();
             const detected = await buildDetected(workspaceRoot, files, job.payload.localPath || '');
+            try {
+              detected.summaryLog = detected.summaryLog && typeof detected.summaryLog === 'object' ? detected.summaryLog : { logs: [] };
+              detected.summaryLog.logs.push(...preLog);
+              detected.summaryLog.logs.push({ ts: Date.now(), msg: `Step timing: walk ${walkMs}ms, analysis ${analysisMs}ms` });
+              detected.summaryLog.logs.push({ ts: Date.now(), msg: `Files discovered: ${files.length}, analyzed: ${totalFiles}` });
+            } catch (_) { }
             const baselineMapping = {};
             for (const f of Object.keys(detected.features)) {
               baselineMapping[f] = detected.features[f].map(k => baseline.lookup(k));
@@ -628,7 +755,9 @@ class JobQueue extends EventEmitter {
             }
           } else if (job.payload && job.payload.zipBuffer) {
             ensureNotCancelled();
+            const unzipStart = Date.now();
             workspaceRoot = await repoAnalyzer.unzipBuffer(Buffer.from(job.payload.zipBuffer, 'base64'));
+            const unzipMs = Date.now() - unzipStart;
             updateProgress(2);
             const extensions = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.html', '.py', '.ipynb', '.java', '.kt', '.go'];
             const excludePathsZip = Array.isArray(job.payload?.excludePaths) ? job.payload.excludePaths : [];
@@ -637,10 +766,13 @@ class JobQueue extends EventEmitter {
             const skipLfsEnv = String(process.env.SCAN_SKIP_LFS || '').toLowerCase() === 'true';
             const userExclEnv = String(process.env.SCAN_USER_EXCLUDE_PATHS || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
             const mergedExcludes = Array.from(new Set([...(excludePathsZip || []), ...userExclEnv]));
+            const walkStart = Date.now();
             const files = await repoAnalyzer.walkFiles(workspaceRoot, { extensions, excludePaths: mergedExcludes, maxFileBytes, skipLfsFiles: skipLfsEnv });
+            const walkMs = Date.now() - walkStart;
             console.log(`Found ${files.length} files to analyze from uploaded zip`);
             let filesAnalyzed = 0;
             const totalFiles = files.length;
+            const analysisStart = Date.now();
             for (const file of files) {
               ensureNotCancelled();
               await new Promise(resolve => setTimeout(resolve, 10));
@@ -649,8 +781,18 @@ class JobQueue extends EventEmitter {
               job.progress = analysisProgress;
               this.emit('progress', { id: job.id, progress: job.progress, step: `Analyzing ${filesAnalyzed}/${totalFiles} files` });
             }
+            const analysisMs = Date.now() - analysisStart;
             ensureNotCancelled();
             const detected = await buildDetected(workspaceRoot, files, job.payload.repoUrl || '');
+            try {
+              detected.summaryLog = detected.summaryLog && typeof detected.summaryLog === 'object' ? detected.summaryLog : { logs: [] };
+              const mem = process && process.memoryUsage ? process.memoryUsage() : {};
+              detected.summaryLog.logs.push(
+                { ts: Date.now(), msg: `Step timing: unzip ${unzipMs}ms, walk ${walkMs}ms, analysis ${analysisMs}ms` },
+                { ts: Date.now(), msg: `Files discovered: ${files.length}, analyzed: ${totalFiles}` },
+                { ts: Date.now(), msg: `Memory RSS: ${mem.rss || 0}, HeapUsed: ${mem.heapUsed || 0}` }
+              );
+            } catch (_) { }
             const baselineMapping = {};
             for (const f of Object.keys(detected.features)) {
               baselineMapping[f] = detected.features[f].map(k => baseline.lookup(k));
@@ -677,15 +819,15 @@ class JobQueue extends EventEmitter {
           } else {
             job.result = this._buildFixtureResult(job);
           }
-          
+
           updateProgress(4, 'done');
-          
+
           if (this.useDatabase && scan) {
             scan.status = 'done';
             scan.progress = 100;
             await scan.save();
           }
-          
+
           console.log('=== SCAN COMPLETED ===');
           console.log('Job ID:', job.id);
           console.log('Scan Result Summary:');
@@ -700,7 +842,7 @@ class JobQueue extends EventEmitter {
           console.log('- Health & Maintenance:', !!job.result?.healthAndMaintenance);
           console.log('Full result object keys:', Object.keys(job.result || {}));
           console.log('========================');
-          
+
           this.emit('done', { id: job.id, result: job.result });
         } catch (err) {
           console.error('Job failed with error:', err);
@@ -708,7 +850,7 @@ class JobQueue extends EventEmitter {
           job.message = String(err);
           this._updateJobInDb(job);
           job.result = { error: String(err) };
-          
+
           if (this.useDatabase) {
             try {
               await ScanModel.findOneAndUpdate(
@@ -719,17 +861,87 @@ class JobQueue extends EventEmitter {
               console.error('Error updating scan status on failure:', dbErr);
             }
           }
-          
+
+          // Finalize structured summary before completion
+          try {
+            const now = Date.now();
+            const started = job.startedAt || (job.createdAt ? new Date(job.createdAt).getTime() : now);
+            const totalMs = Math.max(0, now - started);
+            const durationSeconds = (totalMs / 1000).toFixed(3);
+            const filesScanned = (job.result?.summary?.filesScanned != null)
+              ? job.result.summary.filesScanned
+              : (Array.isArray(job.result?.files) ? job.result.files.length : 0);
+            const filesAnalyzed = Array.isArray(job.result?.files) ? job.result.files.length : 0;
+            const filesIgnored = Math.max(0, filesScanned - filesAnalyzed);
+            const sp = job.result?.securityAndPerformance || {};
+            const issuesFound =
+              (Array.isArray(sp.securityVulnerabilities) ? sp.securityVulnerabilities.length : 0) +
+              (Array.isArray(sp.insecureApiCalls) ? sp.insecureApiCalls.length : 0) +
+              (Array.isArray(sp.missingPolicies) ? sp.missingPolicies.length : 0) +
+              (Array.isArray(sp.secrets) ? sp.secrets.length : 0);
+            const mem = process && process.memoryUsage ? process.memoryUsage() : {};
+            const rssMB = mem.rss ? (mem.rss / (1024 * 1024)).toFixed(2) : '0.00';
+            const heapMB = mem.heapUsed ? (mem.heapUsed / (1024 * 1024)).toFixed(2) : '0.00';
+            const cpu = process && process.cpuUsage ? process.cpuUsage() : { user: 0, system: 0 };
+            const cpuUserMs = Math.round((cpu.user || 0) / 1000);
+            const cpuSystemMs = Math.round((cpu.system || 0) / 1000);
+            const pkg = (() => { try { return require('../../package.json'); } catch { return {}; } })();
+            const agentVersion = pkg && pkg.version ? `Baseline Agent v${pkg.version}` : 'N/A';
+            const criticalCount = (() => {
+              const vulns = Array.isArray(sp.securityVulnerabilities) ? sp.securityVulnerabilities : [];
+              return vulns.filter(v => String(v?.severity || '').toLowerCase().includes('critical')).length;
+            })();
+            /** @type {string[]} */
+            const warnings = [];
+            if (criticalCount > 0) warnings.push(`${criticalCount} critical vulnerabilities detected`);
+            if ((Array.isArray(sp.missingPolicies) ? sp.missingPolicies.length : 0) > 0) warnings.push('Missing security policies');
+            if ((Array.isArray(sp.insecureApiCalls) ? sp.insecureApiCalls.length : 0) > 0) warnings.push('Insecure API calls detected');
+
+            // Ensure summaryLog object exists
+            job.result.summaryLog = job.result.summaryLog && typeof job.result.summaryLog === 'object' ? job.result.summaryLog : { logs: [] };
+            job.result.summaryLog.duration = `${durationSeconds} seconds`;
+            job.result.summaryLog.filesIgnored = filesIgnored;
+            job.result.summaryLog.agentVersion = agentVersion;
+            job.result.summaryLog.scanDate = new Date(now).toISOString();
+            job.result.summaryLog.stats = {
+              filesScanned,
+              issuesFound,
+              vulnerabilities: Array.isArray(sp.securityVulnerabilities) ? sp.securityVulnerabilities.length : 0,
+              hygieneIssues: ((Array.isArray(sp.missingPolicies) ? sp.missingPolicies.length : 0) + (Array.isArray(sp.insecureApiCalls) ? sp.insecureApiCalls.length : 0)),
+              secretsFound: Array.isArray(sp.secrets) ? sp.secrets.length : 0,
+            };
+            job.result.summaryLog.resourceUsage = {
+              memoryRSSMB: rssMB,
+              heapUsedMB: heapMB,
+              cpuUserMs,
+              cpuSystemMs,
+            };
+            job.result.summaryLog.warnings = warnings;
+
+            // Persist to DB summaryLog as well
+            if (this.useDatabase) {
+              try {
+                await ScanModel.findOneAndUpdate({ id: job.id }, { summaryLog: job.result.summaryLog, completedAt: new Date(now).toISOString() });
+              } catch (_) { }
+            }
+          } catch (_) { }
+
           this.emit('done', { id: job.id, result: job.result });
         } finally {
-            if (workspaceRoot) await repoAnalyzer.cleanup(workspaceRoot);
-            this.activeJobs.delete(job.id);
-            this._scheduleNext();
+          if (workspaceRoot) await repoAnalyzer.cleanup(workspaceRoot);
+          this.activeJobs.delete(job.id);
+          this._scheduleNext();
         }
       })();
     }
   }
 
+  /**
+   * @param {any} job
+   * @param {string[]} files
+   * @param {any} detected
+   * @returns {any}
+   */
   _buildFixtureResult(job, files = [], detected = {}) {
     // Minimal fixture with summary, features and suggestions, exposing key analyses top-level
     return {
@@ -757,6 +969,11 @@ class JobQueue extends EventEmitter {
     };
   }
 
+  /**
+   * @param {string} scanId
+   * @param {any} changes
+   * @returns {Promise<any>}
+   */
   async createApplyJob(scanId, changes) {
     const jobId = uuidv4();
     const job = {
@@ -774,17 +991,19 @@ class JobQueue extends EventEmitter {
     return job;
   }
 
+  /** @returns {void} */
   startProcessing() {
     for (const job of this.jobs.values()) {
       if ((job.status === 'pending' || job.status === 'queued') &&
-          !this.activeJobs.has(job.id) &&
-          !this.pending.find(j => j.id === job.id)) {
+        !this.activeJobs.has(job.id) &&
+        !this.pending.find(j => j.id === job.id)) {
         this.pending.push(job);
       }
     }
     this._scheduleNext();
   }
 
+  /** @returns {void} */
   _scheduleNext() {
     while (this.pending.length > 0 && this.activeJobs.size < this.maxConcurrent) {
       const nextJob = this.pending.shift();
@@ -794,12 +1013,16 @@ class JobQueue extends EventEmitter {
     }
   }
 
+  /**
+   * @param {string} id
+   * @returns {Promise<any|null>}
+   */
   async getJob(id) {
     // Try memory cache first for performance
     if (this.jobs.has(id)) {
       return this.jobs.get(id);
     }
-    
+
     // If not in memory and database is available, try to fetch from database
     if (this.useDatabase) {
       try {
@@ -814,10 +1037,14 @@ class JobQueue extends EventEmitter {
         console.error(`Error fetching job ${id} from database:`, err);
       }
     }
-    
+
     return null;
   }
 
+  /**
+   * @param {string} id
+   * @returns {Promise<any>}
+   */
   async cancelJob(id) {
     const job = await this.getJob(id);
     if (!job) return { found: false, changed: false, status: 'not_found' };
@@ -835,7 +1062,11 @@ class JobQueue extends EventEmitter {
     }
     return { found: true, changed: true, status: job.status || 'processing' };
   }
-  
+
+  /**
+   * @param {any} dbJob
+   * @returns {any}
+   */
   _convertFromDbModel(dbJob) {
     // Convert from Mongoose document to plain object
     const job = dbJob.toObject ? dbJob.toObject() : dbJob;

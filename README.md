@@ -79,7 +79,7 @@ Notes:
 ## Documentation & Roadmap
 
 - In-app docs: navigate to `/docs` for Getting Started, API, validation, architecture, security, accessibility, performance, and roadmap.
-- Project spec and todos are tracked in `main_baseline_repo_checker.json`.
+- Project spec and roadmap are documented in `docs/README.md` and related files in `docs/`.
 
 ## Testing
 

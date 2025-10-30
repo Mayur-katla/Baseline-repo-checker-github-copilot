@@ -72,7 +72,27 @@ export function buildMarkdownReport({ displayData = {}, compat = {}, analytics =
   lines.push(`- Files Ignored: ${summary.filesIgnored ?? 0}`);
   lines.push(`- Agent Version: ${summary.agentVersion || 'N/A'}`);
   lines.push(`- Scan Date: ${summary.scanDate || 'N/A'}`);
-  (summary.errorLogs || displayData.logs || []).forEach(e => lines.push(`- ERROR: ${e}`));
+  if (summary.stats) {
+    const s = summary.stats || {};
+    if (typeof s.filesScanned === 'number') lines.push(`- Files Scanned: ${s.filesScanned}`);
+    if (typeof s.filesAnalyzed === 'number') lines.push(`- Files Analyzed: ${s.filesAnalyzed}`);
+    if (typeof s.issuesFound === 'number') lines.push(`- Issues Found: ${s.issuesFound}`);
+  }
+  if (summary.resourceUsage) {
+    const r = summary.resourceUsage || {};
+    const rss = r.memoryRSSMB != null ? `${r.memoryRSSMB}MB` : null;
+    const heap = r.heapUsedMB != null ? `${r.heapUsedMB}MB` : null;
+    const cpu = (r.cpuUserMs != null || r.cpuSystemMs != null)
+      ? `user ${r.cpuUserMs ?? 0}ms / sys ${r.cpuSystemMs ?? 0}ms`
+      : null;
+    const parts = [rss && `RSS ${rss}`, heap && `Heap ${heap}`, cpu && `CPU ${cpu}`].filter(Boolean);
+    if (parts.length) lines.push(`- Resource Usage: ${parts.join('; ')}`);
+  }
+  if (Array.isArray(summary.warnings) && summary.warnings.length > 0) {
+    (summary.warnings || []).forEach(w => lines.push(`- Warning: ${w}`));
+  }
+  const timeline = (summary.logs || summary.errorLogs || displayData.logs || []);
+  timeline.forEach(e => lines.push(`- LOG: ${e}`));
 
   return lines.join('\n');
 }

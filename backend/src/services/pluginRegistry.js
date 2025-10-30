@@ -34,9 +34,12 @@ async function runDetectors(context) {
   const results = { ...context.result };
   const log = (msg) => {
     try {
-      const arr = Array.isArray(results.summaryLog) ? results.summaryLog : [];
-      arr.push({ ts: Date.now(), msg: `[plugin] ${msg}` });
-      results.summaryLog = arr;
+      if (!results.summaryLog || typeof results.summaryLog !== 'object') {
+        results.summaryLog = { logs: [] };
+      }
+      const logs = Array.isArray(results.summaryLog.logs) ? results.summaryLog.logs : [];
+      logs.push({ ts: Date.now(), msg: `[plugin] ${msg}` });
+      results.summaryLog.logs = logs;
     } catch {}
   };
 

@@ -2,8 +2,10 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { FiLink } from 'react-icons/fi'
 
-const AnchorHeading = ({ id, level = 'h2', children }) => {
-  const Tag = level;
+type HeadLevel = 'h2' | 'h3' | 'h4';
+type AnchorHeadingProps = { id: string; level?: HeadLevel; children: React.ReactNode };
+const AnchorHeading: React.FC<AnchorHeadingProps> = ({ id, level = 'h2', children }) => {
+  const Tag = level as keyof JSX.IntrinsicElements;
   const size = level === 'h2' ? 'text-2xl' : level === 'h3' ? 'text-xl' : 'text-lg';
   return (
     <Tag id={id} className={`${size} font-semibold text-indigo-700 dark:text-indigo-300 mb-4 scroll-mt-24`}>
@@ -15,11 +17,11 @@ const AnchorHeading = ({ id, level = 'h2', children }) => {
   );
 };
 
-const Code = ({ children }) => (
+const Code: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <code className="bg-gray-100 text-gray-900 dark:bg-gray-900/60 dark:text-gray-200 px-2 py-1 rounded font-mono text-sm">{children}</code>
 );
 
-const DocsPage = () => {
+const DocsPage: React.FC = () => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

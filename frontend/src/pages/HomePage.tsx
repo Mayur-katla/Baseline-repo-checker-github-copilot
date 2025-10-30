@@ -9,7 +9,14 @@ import HistoryList from '../components/home/HistoryList.jsx';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket.js';
 
-const FeatureCard = ({ icon, title, description, delay }) => (
+type FeatureCardProps = {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  delay?: number;
+};
+
+const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description, delay }) => (
   <motion.div
     initial={{ opacity: 0, y: 50 }}
     animate={{ opacity: 1, y: 0 }}
@@ -22,22 +29,22 @@ const FeatureCard = ({ icon, title, description, delay }) => (
   </motion.div>
 );
 
-function HomePage() {
+function HomePage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const isFetching = useIsFetching();
   const queryClient = useQueryClient();
 
-  const socket = useSocket(import.meta.env?.VITE_BACKEND_URL);
+  const socket = useSocket((import.meta as any).env?.VITE_BACKEND_URL) as any;
 
   useEffect(() => {
     if (!socket) return;
 
     const onConnect = () => console.log('Socket connected');
-    const onProgress = (data) => {
+    const onProgress = (data: { id: string | number; progress?: number; step?: string }) => {
       queryClient.setQueryData(['scans'], (oldData) => {
         if (!oldData) return oldData; // do not override while loading
-        return oldData.map(scan => scan.id === data.id ? ({
+        return (oldData as any[]).map((scan: any) => scan.id === data.id ? ({
           ...scan,
           progress: data.progress,
           // keep status stable; mark done only when progress >= 100 or step indicates completion
@@ -45,10 +52,10 @@ function HomePage() {
         }) : scan);
       });
     };
-    const onDone = (data) => {
+    const onDone = (data: { id: string | number }) => {
       queryClient.setQueryData(['scans'], (oldData) => {
         if (!oldData) return oldData; // keep undefined until initial fetch resolves
-        return oldData.map(scan =>
+        return (oldData as any[]).map((scan: any) =>
           scan.id === data.id ? { ...scan, progress: 100, status: 'done' } : scan
         );
       });
@@ -56,10 +63,10 @@ function HomePage() {
       queryClient.invalidateQueries({ queryKey: ['scans'] });
       showToast({ message: `Scan ${data.id} completed!`, severity: 'success' });
     };
-    const onFailed = (data) => {
+    const onFailed = (data: { id: string | number }) => {
       queryClient.setQueryData(['scans'], (oldData) => {
         if (!oldData) return oldData; // avoid clearing list prematurely
-        return oldData.map(scan =>
+        return (oldData as any[]).map((scan: any) =>
           scan.id === data.id ? { ...scan, status: 'failed' } : scan
         );
       });
@@ -80,9 +87,9 @@ function HomePage() {
     };
   }, [socket, queryClient]);
 
-  const scansQuery = useQuery({
+  const scansQuery = useQuery<any[], Error>({
     queryKey: ['scans'],
-    queryFn: async ({ signal }) => (await client.get('/scans', { signal })).data,
+    queryFn: async ({ signal }): Promise<any[]> => (await client.get('/scans', { signal })).data,
     retry: 2,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
@@ -98,10 +105,10 @@ function HomePage() {
     }
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => (await client.delete(`/scans/${id}`)).data,
+  const deleteMutation = useMutation<any, Error, string | number>({
+    mutationFn: async (id: string | number): Promise<any> => (await client.delete(`/scans/${id}`)).data,
     onSuccess: () => {
-      queryClient.invalidateQueries('scans');
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
       showToast({ message: 'Scan deleted successfully', severity: 'success' });
     },
     onError: (err) => {

@@ -4,23 +4,23 @@ import { motion } from 'framer-motion';
 import RepoInputForm from '../components/home/RepoInputForm.jsx';
 import apiClient from '../api/client.js';
 
-const ScanPage = () => {
+const ScanPage: React.FC = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleScan = async (formData) => {
+  const handleScan = async (formData: any): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
       console.log('Submitting scan with data:', formData);
       const response = await apiClient.post('/scans', formData);
       console.log('Scan submitted successfully:', response.data);
-      const { scanId } = response.data;
+      const { scanId } = response.data as { scanId: string | number };
       navigate(`/scan/${scanId}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting scan:', err);
-      const errorMessage = err.response?.data?.errors?.[0]?.msg || err.response?.data?.error || 'An unexpected error occurred.';
+      const errorMessage: string = err?.response?.data?.errors?.[0]?.msg || err?.response?.data?.error || 'An unexpected error occurred.';
       setError(errorMessage);
       setLoading(false);
     }

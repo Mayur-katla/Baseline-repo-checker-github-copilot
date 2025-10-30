@@ -3,7 +3,16 @@ import { motion } from 'framer-motion';
 import { FiSave, FiCheckCircle, FiAlertTriangle, FiGithub } from 'react-icons/fi';
 import apiClient from '../api/client.js';
 
-const SettingsInput = ({ label, type = 'text', value, onChange, helperText, placeholder }) => (
+type SettingsInputProps = {
+  label: string;
+  type?: 'text' | 'password' | 'number';
+  value: string | number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  helperText?: string;
+  placeholder?: string;
+};
+
+const SettingsInput: React.FC<SettingsInputProps> = ({ label, type = 'text', value, onChange, helperText, placeholder }) => (
   <div>
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{label}</label>
     <input
@@ -17,23 +26,41 @@ const SettingsInput = ({ label, type = 'text', value, onChange, helperText, plac
   </div>
 );
 
-function Settings() {
-  const [githubToken, setGithubToken] = useState('');
-  const [baselineYear, setBaselineYear] = useState('2025');
-  const [featureThreshold, setFeatureThreshold] = useState('medium');
-  const [message, setMessage] = useState('');
-  const [tokenStatus, setTokenStatus] = useState('idle'); // idle | checking | valid | invalid
-  const [tokenUser, setTokenUser] = useState(null);
-  const [repoInput, setRepoInput] = useState('');
-  const [preflight, setPreflight] = useState(null);
-  const [preflightStatus, setPreflightStatus] = useState('idle'); // idle | checking | ready | not_ready | error
+interface GitHubUser { login?: string }
+interface PreflightPermissions { push?: boolean; pull?: boolean }
+interface PreflightProtection { accessible?: boolean; requiredApprovals?: number; strictStatusChecks?: boolean; requiredContexts?: string[] }
+interface PreflightInfo {
+  owner?: string;
+  repo?: string;
+  defaultBranch?: string;
+  private?: boolean;
+  permissions?: PreflightPermissions;
+  scopes?: string[];
+  protection?: PreflightProtection;
+  reasons?: string[];
+  ready?: boolean;
+  error?: string;
+}
+type TokenStatus = 'idle' | 'checking' | 'valid' | 'invalid';
+type PreflightStatus = 'idle' | 'checking' | 'ready' | 'not_ready' | 'error';
+
+function Settings(): JSX.Element {
+  const [githubToken, setGithubToken] = useState<string>('');
+  const [baselineYear, setBaselineYear] = useState<string>('2025');
+  const [featureThreshold, setFeatureThreshold] = useState<string>('medium');
+  const [message, setMessage] = useState<string>('');
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus>('idle');
+  const [tokenUser, setTokenUser] = useState<GitHubUser | null>(null);
+  const [repoInput, setRepoInput] = useState<string>('');
+  const [preflight, setPreflight] = useState<PreflightInfo | null>(null);
+  const [preflightStatus, setPreflightStatus] = useState<PreflightStatus>('idle');
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('baseline-settings') || '{}');
-    if (saved.githubToken) setGithubToken(saved.githubToken);
+    const saved = JSON.parse(localStorage.getItem('baseline-settings') || '{}') as any;
+    if (saved.githubToken) setGithubToken(saved.githubToken as string);
     if (saved.baselineYear) setBaselineYear(String(saved.baselineYear));
-    if (saved.featureThreshold) setFeatureThreshold(saved.featureThreshold);
-    const token = saved.githubToken || (import.meta?.env?.VITE_GITHUB_TOKEN);
+    if (saved.featureThreshold) setFeatureThreshold(saved.featureThreshold as string);
+    const token = saved.githubToken || ((import.meta as any)?.env?.VITE_GITHUB_TOKEN as string | undefined);
     if (token) {
       validateToken();
     }
@@ -43,15 +70,15 @@ function Settings() {
     try {
       setTokenStatus('checking');
       setTokenUser(null);
-      const res = await apiClient.get('/github/me');
+      const res: any = await apiClient.get('/github/me');
       if (res?.data?.authenticated) {
         setTokenStatus('valid');
-        setTokenUser(res.data.user || null);
+        setTokenUser((res.data.user || null) as GitHubUser | null);
       } else {
         setTokenStatus('invalid');
         setTokenUser(null);
       }
-    } catch (err) {
+    } catch (err: any) {
       const status = err?.status || err?.response?.status;
       if (status === 401 || status === 403) {
         setTokenStatus('invalid');
@@ -74,18 +101,18 @@ function Settings() {
       // Accept either full URL or owner/repo; prefer sending url param to backend
       const params = { url: repoInput };
       // If input looks like owner/repo without scheme, still send as url for unified parsing
-      const res = await apiClient.get('/github/pr/preflight', { params });
-      const data = res?.data || {};
+      const res: any = await apiClient.get('/github/pr/preflight', { params });
+      const data = (res?.data || {}) as PreflightInfo;
       setPreflight(data);
       setPreflightStatus(data.ready ? 'ready' : 'not_ready');
-    } catch (err) {
+    } catch (err: any) {
       setPreflightStatus('error');
       setPreflight({ error: err?.message || 'Preflight failed' });
     }
   };
 
   const handleSave = () => {
-    const prev = JSON.parse(localStorage.getItem('baseline-settings') || '{}');
+    const prev = JSON.parse(localStorage.getItem('baseline-settings') || '{}') as any;
     const newSettings = {
       githubToken,
       baselineYear: Number(baselineYear),

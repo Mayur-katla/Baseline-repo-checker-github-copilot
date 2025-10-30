@@ -18,6 +18,30 @@ Default port: `3001` (configurable via `.env` or environment).
 - `GET /api/scans/:id/status` → `{ scanId, status, progress, logs }`
 - `GET /api/scans/:id/result` → full report (once done)
 - `POST /api/scans/:id/pull-request` → creates a PR. Requires `Authorization: Bearer <github_token>` (or `GITHUB_TOKEN` env). The backend validates input, parses the unified diff provided by the frontend, commits modified/new file contents on a new branch, and opens a pull request. On errors (auth failure, permissions, not found), the API returns an appropriate HTTP status with `{ error }`.
+ - `POST /api/scans/:id/pull-request` → creates a PR. Requires `Authorization: Bearer <github_token>` (or `GITHUB_TOKEN` env). The backend validates input, parses the unified diff provided by the frontend, commits modified/new file contents on a new branch, and opens a pull request.
+   - Body:
+     - `patch: string` — unified diff text to apply
+     - `dryRun?: boolean` — if `true`, only validates and returns a summary without committing/opening a PR
+     - `allowInsecure?: boolean` — if `true`, bypasses security gating (for admins/trusted workflows)
+   - Security gating:
+     - Blocks PR when `Scan.securityAndPerformance.vulnSeveritySummary` has any `critical` or `high` counts, or when `Scan.securityAndPerformance.toolRuns.trufflehog.findingsCount` indicates secrets found, unless `allowInsecure` is true.
+   - Structured errors: returns `{ code, message, hint?, details? }` with appropriate HTTP statuses. Notable codes:
+     - `PR_SECURITY_GATE_BLOCKED` (412) — high/critical vulns or secrets detected
+     - `PR_DIFF_PARSE_FAILED` (400) — invalid unified diff
+     - `PR_GITHUB_AUTH_FAILED` (401) — token missing/invalid
+     - `PR_GITHUB_REPO_ACCESS_FAILED` (403/404) — repo not accessible/not found
+     - `PR_BRANCH_PROTECTS_RESTRICTIONS` (403) — branch protection blocks commits (if determinable)
+     - `PR_CREATE_FAILED` (500) — unexpected error during branch/commit/PR creation
+   - Dry-run response example (200):
+     ```json
+     {
+       "dryRunOnly": true,
+       "changedFiles": ["README.md", "src/index.js"],
+       "owner": "org",
+       "repo": "repo",
+       "defaultBranch": "main"
+     }
+     ```
 - `GET /api/report/download?scanId=...` → JSON report download
 - `GET /api/report/bundle?scanId=...` → ZIP (JSON + CSV + PDF)
 - `GET /api/security/sast?scanId=...` → SAST summary (counts + top findings)
@@ -31,6 +55,8 @@ Default port: `3001` (configurable via `.env` or environment).
 - `GET /api/github/me` → validates the provided token and returns `{ authenticated, user, scopes }`. Include `Authorization: Bearer <github_token>` or set `GITHUB_TOKEN` in env.
 - `GET /api/github/repo/meta?owner=<org>&repo=<name>` or `?url=https://github.com/<org>/<name>` → returns `{ owner, repo, defaultBranch, private, archived, htmlUrl, permissions }` to assist preflight checks. Requires `Authorization: Bearer <github_token>`.
 - `GET /api/github/pr/preflight?owner=<org>&repo=<name>` or `?url=https://github.com/<org>/<name>` → evaluates PR readiness for the repository and the provided token. Returns `{ ready, reasons[], owner, repo, defaultBranch, private, permissions, scopes, user, protection }`. Protection includes `{ accessible, requiredApprovals, strictStatusChecks, requiredContexts[] }` when branch protection is accessible; lack of access does not block PR creation. Requires `Authorization: Bearer <github_token>`.
+   - Structured errors: `{ code, message, hint?, details? }` on failures (missing token, repo not found, permission denied).
+   - Notes: protection details may be unavailable for tokens without admin access; this does not prevent PR creation but is included in `reasons` for visibility.
 
 ### Request Contract & Validation
 
@@ -61,6 +87,7 @@ Invalid inputs return `400 Bad Request` with an `errors` array.
 - `MONGODB_URI`: optional persistence
 - `GITHUB_TOKEN`: optional default GitHub token used when Authorization header not provided
 - `REDIS_URL` / `REDIS_HOST`: optional Redis; the backend only attempts to connect when one of these is set
+ - Optional PR controls: request-level only (`dryRun`, `allowInsecure`). Defaults are not enforced via env.
 
 ## Testing
 

@@ -48,6 +48,32 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(rateLimiter());
 }
 
+// Authorization and standardized error helpers
+function getBearerToken(req) {
+  const authHeader = (req.headers && (req.headers.authorization || req.headers['authorization'])) || '';
+  const m = authHeader.match(/^Bearer\s+(\S+)/i);
+  return (m && m[1]) ? m[1] : '';
+}
+function logUnauthorizedAttempt(req, context = {}) {
+  try {
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'unknown';
+    const method = req.method;
+    const url = req.originalUrl || req.url;
+    console.warn('[UNAUTHORIZED]', { ip, method, url, ...context });
+  } catch (_) {}
+}
+function respondUnauthorized(req, res, message, details = {}) {
+  logUnauthorizedAttempt(req, { message, ...details });
+  const payload = Object.assign({ error: 'Invalid credentials/access' }, details);
+  if (message) payload.message = message;
+  return res.status(401).json(payload);
+}
+function respondForbidden(res, message, details = {}) {
+  const payload = Object.assign({ error: 'Access denied' }, details);
+  if (message) payload.message = message;
+  return res.status(403).json(payload);
+}
+
 app.use('/api/scans', scanRoutes);
 
 app.use('/api/jobs', jobsRoutes);
@@ -64,10 +90,9 @@ app.get('/api/browsers', (req, res) => {
 // GitHub token preflight: validate token and return user info
 app.get('/api/github/me', async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'] || '';
-    const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+    const token = getBearerToken(req) || process.env.GITHUB_TOKEN || '';
     if (!token) {
-      return res.status(401).json({ authenticated: false, error: 'Missing GitHub token' });
+      return respondUnauthorized(req, res, 'Missing GitHub token', { authenticated: false });
     }
     const octokit = new Octokit({ auth: token });
     const resp = await octokit.rest.users.getAuthenticated();
@@ -86,8 +111,10 @@ app.get('/api/github/me', async (req, res) => {
       scopes,
     });
   } catch (e) {
-    const status = e?.status === 401 ? 401 : 400;
-    return res.status(status).json({ authenticated: false, error: 'Invalid or unauthorized GitHub token' });
+    const status = e?.status;
+    if (status === 401) return respondUnauthorized(req, res, 'Invalid GitHub token', { authenticated: false });
+    if (status === 403) return respondForbidden(res, 'Token lacks required permissions', { authenticated: false });
+    return res.status(400).json({ authenticated: false, error: 'Failed to validate GitHub token' });
   }
 });
 
@@ -95,10 +122,9 @@ app.get('/api/github/me', async (req, res) => {
 // Usage: GET /api/github/repo/meta?owner=ORG&repo=NAME or /api/github/repo/meta?url=https://github.com/ORG/NAME
 app.get('/api/github/repo/meta', async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'] || '';
-    const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+    const token = getBearerToken(req) || process.env.GITHUB_TOKEN || '';
     if (!token) {
-      return res.status(401).json({ error: 'Missing GitHub token' });
+      return respondUnauthorized(req, res, 'Missing GitHub token');
     }
     let owner = String(req.query.owner || '').trim();
     let repo = String(req.query.repo || '').trim();
@@ -125,9 +151,11 @@ app.get('/api/github/repo/meta', async (req, res) => {
       permissions: data.permissions || {},
     });
   } catch (e) {
-    const status = e?.status || 500;
-    const msg = (e && e.message) ? String(e.message) : 'Failed to get repo metadata';
-    return res.status(status).json({ error: msg });
+    const status = e?.status;
+    if (status === 401) return respondUnauthorized(req, res, 'Invalid GitHub token');
+    if (status === 403) return respondForbidden(res, 'Forbidden: Cannot access repository metadata');
+    if (status === 404) return res.status(404).json({ error: 'Repository not found' });
+    return res.status(500).json({ error: 'Failed to get repo metadata' });
   }
 });
 
@@ -135,10 +163,9 @@ app.get('/api/github/repo/meta', async (req, res) => {
 // Usage: GET /api/github/pr/preflight?owner=ORG&repo=NAME or /api/github/pr/preflight?url=https://github.com/ORG/NAME
 app.get('/api/github/pr/preflight', async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'] || '';
-    const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+    const token = getBearerToken(req) || process.env.GITHUB_TOKEN || '';
     if (!token) {
-      return res.status(401).json({ ready: false, error: 'Missing GitHub token', reasons: ['No token provided'] });
+      return respondUnauthorized(req, res, 'Missing GitHub token', { ready: false, reasons: ['No token provided'] });
     }
 
     let owner = String(req.query.owner || '').trim();
@@ -170,7 +197,10 @@ app.get('/api/github/pr/preflight', async (req, res) => {
       scopes = String(scopesHeader || '').split(',').map(s => s.trim()).filter(Boolean);
       user = { login: resp?.data?.login || '', id: resp?.data?.id || '', name: resp?.data?.name || '' };
     } catch (e) {
-      reasons.push('Token not authenticated');
+      const status = e?.status;
+      if (status === 401) return respondUnauthorized(req, res, 'Invalid GitHub token', { ready: false });
+      if (status === 403) return respondForbidden(res, 'Token lacks permission to fetch user', { ready: false });
+      reasons.push('Token could not be authenticated');
     }
 
     // Repo details and permissions
@@ -181,8 +211,11 @@ app.get('/api/github/pr/preflight', async (req, res) => {
       defaultBranch = repoInfo.default_branch || 'main';
       if (repoInfo.archived) reasons.push('Repository is archived');
     } catch (e) {
-      const msg = String(e?.message || 'Cannot access repository');
-      return res.status(e?.status || 404).json({ ready: false, error: msg, reasons: ['Repository not accessible'], details: { owner, repo } });
+      const status = e?.status;
+      if (status === 401) return respondUnauthorized(req, res, 'Invalid GitHub token', { ready: false });
+      if (status === 403) return respondForbidden(res, 'Forbidden: Cannot access repository', { ready: false });
+      if (status === 404) return res.status(404).json({ ready: false, error: 'Repository not found' });
+      return res.status(500).json({ ready: false, error: 'Could not fetch repository details' });
     }
 
     // Scope checks: require 'repo' for private repo; 'public_repo' or 'repo' for public
@@ -350,6 +383,8 @@ app.post(
     body('title').optional().isString(),
     body('description').optional().isString(),
     body('patch').optional().isString(),
+    body('dryRun').optional().isBoolean(),
+    body('allowInsecure').optional().isBoolean(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -376,24 +411,37 @@ app.post(
         }
       } catch (_) {}
 
-      const authHeader = req.headers['authorization'] || '';
-      const token = (authHeader.match(/^Bearer\s+(\S+)/i) || [])[1] || process.env.GITHUB_TOKEN || '';
+      const token = getBearerToken(req) || process.env.GITHUB_TOKEN || '';
       const tokenDetected = Boolean(token);
       const appliedPatchBytes = (req.body?.patch ? Buffer.byteLength(String(req.body.patch), 'utf8') : 0);
       const branchBase = `baseline-modernization-${id}`;
       const title = (req.body?.title && String(req.body.title)) || `Baseline Modernization - ${owner}/${repo}`;
       const description = String(req.body?.description || '').trim();
       const patch = String(req.body?.patch || '');
+      const dryRunReq = (req.body?.dryRun !== undefined ? Boolean(req.body.dryRun) : undefined);
+      const dryRun = dryRunReq !== undefined ? dryRunReq : String(process.env.PR_DRY_RUN_DEFAULT || 'false').toLowerCase() === 'true';
+      const allowInsecure = Boolean(req.body?.allowInsecure || req.query?.allowInsecure);
 
       // Strict mode: require token, owner/repo, and non-empty patch
       if (!tokenDetected) {
-        return res.status(401).json({ error: 'Missing GitHub token' });
+        return respondUnauthorized(req, res, 'Missing GitHub token', {
+          code: 'PR_TOKEN_MISSING',
+          hint: 'Provide Authorization: Bearer <token> header or set GITHUB_TOKEN in environment.'
+        });
       }
       if (owner === 'unknown' || repo === 'unknown') {
-        return res.status(400).json({ error: 'Unable to derive repository owner/name from scan repoUrl' });
+        return res.status(400).json({
+          error: 'Unable to derive repository owner/name from scan repoUrl',
+          code: 'PR_REPO_PARSE_FAILED',
+          hint: 'Ensure scan.repoUrl includes github.com/<owner>/<repo> and is a valid GitHub URL.'
+        });
       }
       if (!patch || patch.trim().length === 0) {
-        return res.status(400).json({ error: 'Patch is required to create a PR' });
+        return res.status(400).json({
+          error: 'Patch is required to create a PR',
+          code: 'PR_PATCH_REQUIRED',
+          hint: 'Send a unified diff string as "patch" in the request body.'
+        });
       }
 
       // Helper: parse simplified unified diff generated by frontend buildUnifiedDiff
@@ -471,6 +519,48 @@ app.post(
           const changes = parseUnifiedDiff(patch);
           const summaryChangedFiles = [];
           const commitMessageBase = `${title}\n\n${description || 'Automated PR created from baseline scan.'}`;
+
+          // Security gating: block PR when high-risk findings are present, unless allowInsecure
+          const sec = scan.securityAndPerformance || {};
+          const sev = sec.vulnSeveritySummary || {};
+          const criticalHigh = Number(sev.critical || 0) + Number(sev.high || 0);
+          const secretsCount = Array.isArray(sec.secretsFindings) ? sec.secretsFindings.length : Number((sec.toolRuns && sec.toolRuns.trufflehog && sec.toolRuns.trufflehog.findingsCount) || 0);
+          const gatingEnabled = String(process.env.PR_SECURITY_GATING || 'on').toLowerCase() !== 'off';
+          if (gatingEnabled && !allowInsecure && (criticalHigh > 0 || secretsCount > 0)) {
+            return res.status(412).json({
+              error: 'PR blocked by security gating',
+              code: 'PR_SECURITY_GATE_BLOCKED',
+              details: {
+                criticalHighVulns: criticalHigh,
+                secretsFindings: secretsCount,
+                summary: sev,
+                toolRuns: sec.toolRuns || {},
+              },
+              remedies: [
+                'Run /api/security/run/semgrep and address critical/high findings',
+                'Run /api/security/run/trufflehog and remove exposed secrets',
+                'Re-run scan and retry PR with allowInsecure=true to acknowledge'
+              ]
+            });
+          }
+
+          // If dry-run requested, do not commit changes or open PR; return a summary
+          if (dryRun) {
+            const files = changes.map(c => String(c.path || '').replace(/^\/+/, '')).filter(Boolean);
+            return res.status(200).json({
+              id,
+              owner,
+              repo,
+              defaultBranch,
+              wouldCreateBranch: branchName,
+              dryRunOnly: true,
+              tokenDetected,
+              appliedPatchBytes,
+              changedFiles: files,
+              provider: 'github',
+              message: 'Dry-run successful. No commits or PR were made.'
+            });
+          }
 
           // Optionally keep the patch artifact for transparency
           try {
@@ -566,11 +656,17 @@ app.post(
           console.error('Octokit PR creation failed:', e);
           const status = Number(e?.status) || 500;
           const msg = (e && e.message) ? String(e.message) : 'Failed to create pull request';
-          return res.status(status).json({ error: msg });
+          return res.status(status).json({
+            error: msg,
+            code: 'PR_PROVIDER_ERROR',
+            provider: 'github',
+            stage: 'octokit',
+            hint: 'Verify repository permissions, branch protection, and token scopes.'
+          });
       }
     } catch (error) {
       console.error(`Error creating pull request for scan ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to create pull request' });
+      res.status(500).json({ error: 'Failed to create pull request', code: 'PR_CREATE_FAILED' });
     }
   }
 );
@@ -701,12 +797,14 @@ app.get('/api/report/bundle', async (req, res) => {
       }
     });
 
+    const repoName = (payload.repoDetails?.repoName || payload.repoDetails?.name || '').trim();
+    const baseName = repoName && repoName.length > 0 ? repoName : `scan-${scan.id}`;
     const zip = new AdmZip();
-    zip.addFile(`scan-${scan.id}-report.json`, Buffer.from(JSON.stringify(payload, null, 2), 'utf-8'));
-    zip.addFile(`scan-${scan.id}-summary.csv`, Buffer.from(csv, 'utf-8'));
-    zip.addFile(`scan-${scan.id}-report.pdf`, pdfBuffer);
+    zip.addFile(`${baseName}-report.json`, Buffer.from(JSON.stringify(payload, null, 2), 'utf-8'));
+    zip.addFile(`${baseName}-summary.csv`, Buffer.from(csv, 'utf-8'));
+    zip.addFile(`${baseName}-report.pdf`, pdfBuffer);
 
-    const bundleName = `scan-${scan.id}-bundle.zip`;
+    const bundleName = `${baseName}-bundle.zip`;
     res.setHeader('Content-Disposition', `attachment; filename="${bundleName}"`);
     res.setHeader('Content-Type', 'application/zip');
     res.status(200).send(zip.toBuffer());

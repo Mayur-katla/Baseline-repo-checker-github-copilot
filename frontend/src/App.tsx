@@ -11,7 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './App.css';
 import ComparePage from './pages/ComparePage.tsx';
 
-const AppContent = () => {
+const AppContent: React.FC = () => {
   const location = useLocation();
   return (
     <div className="min-h-screen font-sans bg-white text-gray-900 dark:bg-gray-900 dark:text-white">
@@ -31,7 +31,7 @@ const AppContent = () => {
   );
 }
 
-function App() {
+function App(): JSX.Element {
   return (
     <ErrorBoundary>
       <AppContent />
